@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zeta.js — Style Presets</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #0a0a1a;
+            color: #e0e0f0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            padding: 2rem 0 1rem;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #7b6ef6, #38bdf8, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            margin-top: 0.4rem;
+            color: #8888aa;
+            font-size: 0.94rem;
+        }
+
+        .demo-nav {
+            display: flex;
+            gap: 0.55rem;
+            margin: 0.4rem 0 0.8rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .demo-nav a {
+            text-decoration: none;
+            color: #bdb7ef;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 999px;
+            font-size: 0.74rem;
+            padding: 0.35rem 0.72rem;
+            transition: all 0.15s;
+        }
+
+        .demo-nav a.active,
+        .demo-nav a:hover {
+            color: #fff;
+            border-color: rgba(123, 110, 246, 0.6);
+            background: rgba(123, 110, 246, 0.25);
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.75rem;
+            margin: 0.8rem 0 1.3rem;
+        }
+
+        .controls button {
+            padding: 0.55rem 1.5rem;
+            border-radius: 8px;
+            border: 1px solid rgba(123, 110, 246, 0.4);
+            background: rgba(123, 110, 246, 0.08);
+            color: #c0b8ff;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .controls button:hover {
+            background: rgba(123, 110, 246, 0.2);
+            border-color: rgba(123, 110, 246, 0.8);
+        }
+
+        .controls button.active {
+            background: linear-gradient(135deg, #7b6ef6, #5b4ed6);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 16px rgba(123, 110, 246, 0.35);
+        }
+
+        #figure {
+            width: 980px;
+            height: 640px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: #12122a;
+            overflow: hidden;
+            box-shadow: 0 4px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        #figure canvas,
+        #figure svg {
+            display: block;
+        }
+
+        footer {
+            margin-top: 1.8rem;
+            padding-bottom: 1.5rem;
+            color: #555;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Zeta.js</h1>
+        <p>Style Presets — compose reusable visual recipes with Style and useStyle()</p>
+    </header>
+
+    <nav class="demo-nav">
+        <a href="./index.html">Gallery</a>
+        <a href="./tutorial.html">Tutorial</a>
+        <a href="./showcase.html">Showcase</a>
+        <a href="./style-presets.html" class="active">Style Presets</a>
+        <a href="./mha.html">MHA Diagram</a>
+        <a href="./path-lab.html">Path Lab</a>
+    </nav>
+
+    <div class="controls">
+        <button id="btn-canvas" class="active">Canvas2D</button>
+        <button id="btn-svg">SVG</button>
+    </div>
+
+    <div id="figure"></div>
+
+    <footer>Zeta.js · Reusable style recipes</footer>
+
+    <script type="module" src="./style-presets.ts"></script>
+</body>
+
+</html>

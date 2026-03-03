@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest an enhancement to Zeta.js
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the proposal. Please focus on user-facing impact and API shape.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Include API sketch or usage example if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

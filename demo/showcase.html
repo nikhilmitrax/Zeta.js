@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zeta.js — Simplicity Showcase</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+      background: #0a1020;
+      color: #e6eef7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 18px 12px 28px;
+    }
+
+    header {
+      padding: 1rem 0 0.8rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2.3rem;
+      font-weight: 700;
+      background: linear-gradient(120deg, #38bdf8, #34d399, #f59e0b);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      margin-top: 0.35rem;
+      color: #92a8c4;
+      font-size: 0.95rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      margin: 0.75rem 0 1.2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .controls button {
+      padding: 0.55rem 1.5rem;
+      border-radius: 8px;
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      background: rgba(56, 189, 248, 0.08);
+      color: #bde9fb;
+      font-size: 0.84rem;
+      font-weight: 560;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .controls button:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.82);
+    }
+
+    .controls button.active {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      color: #f0f9ff;
+      border-color: transparent;
+      box-shadow: 0 2px 16px rgba(14, 165, 233, 0.34);
+    }
+
+    #figure {
+      width: 1060px;
+      height: 720px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #111c2e;
+      overflow: hidden;
+      box-shadow: 0 4px 36px rgba(0, 0, 0, 0.45);
+      max-width: 100%;
+    }
+
+    #figure canvas,
+    #figure svg {
+      display: block;
+    }
+
+    footer {
+      margin-top: 1.5rem;
+      padding-bottom: 1.5rem;
+      color: #7288a5;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Zeta.js</h1>
+    <p>Simplicity Showcase — node/edge helpers, layout macros, contexts, and projection</p>
+  </header>
+
+  <div class="controls">
+    <button id="btn-canvas" class="active">Canvas2D</button>
+    <button id="btn-svg">SVG</button>
+  </div>
+
+  <div id="figure"></div>
+
+  <footer>Zeta.js · Intent-level drawing API in one scene</footer>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+
+</html>

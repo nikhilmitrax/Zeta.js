@@ -1,0 +1,54 @@
+# Post-GitHub-Repo TODO (Release Readiness)
+
+1. [x] Create the GitHub repository and choose canonical URL.
+   - URL: https://github.com/nikhilmitrax/Zeta.js
+
+2. [ ] Connect local repo to GitHub remote and push default branch.
+   - `git remote add origin <repo-url>`
+   - `git push -u origin main`
+
+3. [x] Update package metadata in `package.json`.
+   - `repository`
+   - `homepage`
+   - `bugs`
+
+4. [x] Update README badges/links after repo is live.
+   - CI badge URL
+   - Actions URL
+   - Any repository-relative docs links
+   - npm-friendly logo URL if needed
+
+5. [x] Verify maintainer references use `@nikhilmitrax`.
+   - `.github/CODEOWNERS`
+   - `SECURITY.md`
+   - `CONTRIBUTING.md`
+
+6. [ ] Configure branch protections.
+   - Require pull requests
+   - Require CI checks
+   - Restrict force-push/deletion
+
+7. [ ] Configure GitHub Pages deployment.
+   - Confirm Pages source is "GitHub Actions"
+   - Verify `demo-pages.yml` permissions and environment
+
+8. [ ] Configure repository settings.
+   - Enable issues
+   - Enable security advisories
+   - Enable Dependabot alerts
+   - Enable discussions (optional)
+
+9. [ ] Configure npm publishing.
+   - Confirm package ownership
+   - Add `NPM_TOKEN` secret for release workflow (if publishing via CI)
+
+10. [ ] Run release verification in GitHub CI.
+    - `npm run typecheck`
+    - `npm test`
+    - `npm run build`
+    - `npm run build:demo`
+    - `npm pack --dry-run`
+
+11. [ ] Create first GitHub release/tag.
+    - Tag: `v0.1.0`
+    - Notes from `CHANGELOG.md`

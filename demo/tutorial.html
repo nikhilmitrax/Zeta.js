@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zeta.js — Complete Tutorial</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #070b1a;
+            --panel: #10162d;
+            --panel-2: #0d1328;
+            --line: rgba(255, 255, 255, 0.1);
+            --text: #e4e8f8;
+            --muted: #9aa5c7;
+            --blue: #38bdf8;
+            --purple: #818cf8;
+            --green: #34d399;
+            --amber: #fbbf24;
+            --pink: #f472b6;
+            --code-bg: #090f20;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 12% -8%, rgba(99, 102, 241, 0.28), transparent 36%),
+                radial-gradient(circle at 88% 5%, rgba(56, 189, 248, 0.22), transparent 32%),
+                var(--bg);
+            padding: 28px 22px 40px;
+        }
+
+        .shell {
+            width: min(1280px, 100%);
+            margin: 0 auto;
+            display: grid;
+            gap: 16px;
+        }
+
+        .hero {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: linear-gradient(145deg, rgba(16, 22, 45, 0.96), rgba(9, 14, 30, 0.96));
+            padding: 24px 24px 18px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .kicker {
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 4vw, 2.9rem);
+            font-weight: 700;
+            line-height: 1.08;
+            background: linear-gradient(125deg, var(--purple), var(--blue), var(--green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            max-width: 920px;
+            font-size: 0.98rem;
+            line-height: 1.45;
+        }
+
+        .demo-nav {
+            display: flex;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .demo-nav a {
+            text-decoration: none;
+            color: #c5bff7;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 999px;
+            font-size: 0.74rem;
+            padding: 0.36rem 0.74rem;
+            transition: all 0.15s;
+        }
+
+        .demo-nav a.active,
+        .demo-nav a:hover {
+            color: #fff;
+            border-color: rgba(129, 140, 248, 0.62);
+            background: rgba(129, 140, 248, 0.24);
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.7rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .controls button {
+            padding: 0.54rem 1.3rem;
+            border-radius: 8px;
+            border: 1px solid rgba(129, 140, 248, 0.44);
+            background: rgba(129, 140, 248, 0.08);
+            color: #c6c2ff;
+            font-size: 0.83rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .controls button:hover {
+            background: rgba(129, 140, 248, 0.2);
+            border-color: rgba(129, 140, 248, 0.82);
+        }
+
+        .controls button.active {
+            background: linear-gradient(135deg, #7b6ef6, #5b4ed6);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 16px rgba(123, 110, 246, 0.32);
+        }
+
+        .renderer-status {
+            color: var(--muted);
+            font-size: 0.8rem;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 0.36rem 0.66rem;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .renderer-status strong {
+            color: #bfdbfe;
+            font-weight: 600;
+        }
+
+        .toc {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .toc a {
+            text-decoration: none;
+            color: #9fb2d4;
+            font-size: 0.76rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            padding: 0.3rem 0.6rem;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .toc a:hover {
+            color: #fff;
+            border-color: rgba(56, 189, 248, 0.55);
+            background: rgba(56, 189, 248, 0.12);
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: linear-gradient(150deg, rgba(16, 22, 45, 0.94), rgba(10, 15, 32, 0.94));
+            padding: 18px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .panel h2 {
+            font-size: 1.2rem;
+            font-weight: 650;
+        }
+
+        .panel p {
+            color: var(--muted);
+            line-height: 1.5;
+            font-size: 0.94rem;
+        }
+
+        .coverage {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .coverage .chip {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            color: #c6d4f3;
+            font-size: 0.8rem;
+        }
+
+        .topic {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: linear-gradient(145deg, rgba(16, 22, 45, 0.92), rgba(10, 15, 31, 0.92));
+            padding: 18px;
+            display: grid;
+            gap: 12px;
+            scroll-margin-top: 24px;
+        }
+
+        .topic h3 {
+            font-size: 1.15rem;
+            font-weight: 640;
+        }
+
+        .topic p {
+            color: var(--muted);
+            line-height: 1.5;
+            font-size: 0.92rem;
+        }
+
+        .topic-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 14px;
+            align-items: start;
+        }
+
+        .code-block {
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 12px;
+            background: var(--code-bg);
+            overflow: auto;
+        }
+
+        .code-block pre {
+            font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            line-height: 1.42;
+            color: #cdd7f3;
+            padding: 14px;
+            min-width: 430px;
+        }
+
+        .demo-pane {
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 12px;
+            background: #0a1022;
+            padding: 10px;
+            overflow-x: auto;
+        }
+
+        .demo-surface {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            background: #0b1226;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+        }
+
+        .demo-note {
+            margin-top: 8px;
+            color: #8fa2c8;
+            font-size: 0.77rem;
+        }
+
+        .api-list {
+            display: grid;
+            gap: 6px;
+            color: #c6d1ec;
+            font-size: 0.84rem;
+            line-height: 1.4;
+        }
+
+        .api-list code {
+            font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+            font-size: 0.82em;
+            color: #9fd0ff;
+        }
+
+        .footer {
+            color: #6f7ea3;
+            font-size: 0.8rem;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 1120px) {
+            .coverage {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .topic-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 18px 14px 26px;
+            }
+
+            .hero,
+            .panel,
+            .topic {
+                padding: 14px;
+            }
+
+            .coverage {
+                grid-template-columns: 1fr;
+            }
+
+            .code-block pre {
+                min-width: 0;
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="shell">
+        <header class="hero">
+            <p class="kicker">Zeta.js Tutorial</p>
+            <h1>Complete Single-Page Guide</h1>
+            <p class="subtitle">This page walks through the full public Zeta surface: canvas setup, primitives, styling, anchors, routing,
+                constraints, layout macros, plotting/projection contexts, interactions, animation, theme/debug tools, plugins, reactive
+                utilities, and renderer/lifecycle access.</p>
+
+            <nav class="demo-nav">
+                <a href="./index.html">Gallery</a>
+                <a href="./tutorial.html" class="active">Tutorial</a>
+                <a href="./showcase.html">Showcase</a>
+                <a href="./mha.html">MHA Diagram</a>
+                <a href="./stress-test.html">Stress Test</a>
+            </nav>
+
+            <div class="controls">
+                <button id="btn-canvas" class="active">Canvas2D</button>
+                <button id="btn-svg">SVG</button>
+                <span class="renderer-status">Live demos render with <strong data-renderer-readout>Canvas2D</strong></span>
+            </div>
+
+            <div class="toc">
+                <a href="#quickstart">Quick Start</a>
+                <a href="#primitives">Primitives</a>
+                <a href="#anchors">Anchors & Routing</a>
+                <a href="#constraints">Constraints</a>
+                <a href="#layout">Layout & Containers</a>
+                <a href="#contexts">Coords & Isometric</a>
+                <a href="#animation">Animation</a>
+                <a href="#debug">Theme & Debug</a>
+                <a href="#plugins">Plugins</a>
+                <a href="#reactive">Signals & Math</a>
+                <a href="#lifecycle">Renderer & Lifecycle</a>
+            </div>
+        </header>
+
+        <section class="panel">
+            <h2>Coverage Map</h2>
+            <p>Every section includes real code and focused demos. The examples intentionally use both low-level primitives and intent-level
+                helpers like <code>node()</code>, <code>edge()</code>, and <code>follow()</code>.</p>
+            <div class="coverage">
+                <div class="chip">Canvas setup, renderers, themes</div>
+                <div class="chip">rect/circle/path/text/tex/line</div>
+                <div class="chip">Transforms, styles, style presets</div>
+                <div class="chip">Anchors, edge routes, obstacle avoidance</div>
+                <div class="chip">rightOf/leftOf/above/below/pin/follow</div>
+                <div class="chip">row/column/grid/stack/container/node</div>
+                <div class="chip">coords/axes/func and isometric projection</div>
+                <div class="chip">pointer events, dragging, hover/click</div>
+                <div class="chip">animate(), loop(), stopAnimation()</div>
+                <div class="chip">debugSnapshot bounds/anchors/routes</div>
+                <div class="chip">Plugin API: use/defineShape/defineMacro</div>
+                <div class="chip">signal/computed/batch + math helpers</div>
+            </div>
+        </section>
+
+        <section class="topic" id="quickstart">
+            <h3>1) Quick Start and Core Canvas Options</h3>
+            <p>Instantiate a canvas in a DOM container, choose the renderer, and optionally apply theme defaults for <code>node()</code> and
+                <code>edge()</code> helpers.</p>
+            <div class="code-block">
+                <pre><code>import Z from 'zeta.js';
+
+const z = new Z.Canvas('#figure', {
+  renderer: 'auto',     // 'canvas2d' | 'svg' | 'auto'
+  width: 960,
+  height: 540,
+  responsive: true,
+});
+
+z.theme('diagram');
+
+const a = z.node('API', { at: [80, 120] });
+const b = z.node('Worker', { at: [320, 120] });
+z.edge(a, b, { route: 'orthogonal' });
+
+z.flush();</code></pre>
+            </div>
+            <div class="api-list">
+                <div><code>CanvasOptions</code>: <code>renderer</code>, <code>width</code>, <code>height</code>, <code>responsive</code></div>
+                <div><code>theme(nameOrTheme)</code>: built-ins include <code>'diagram'</code> and <code>'slate'</code></div>
+                <div><code>getRenderer()</code>, <code>getScene()</code>, <code>flush()</code>, <code>loop()</code>, <code>dispose()</code></div>
+            </div>
+        </section>
+
+        <section class="topic" id="primitives">
+            <h3>2) Primitives, Styling, Text, and LaTeX</h3>
+            <p>Zeta primitives are chainable scene nodes. Use transform methods for placement and style methods for visual rules. Text nodes
+                support both plain and LaTeX-normalized rendering.</p>
+            <div class="topic-grid">
+                <div class="code-block">
+                    <pre><code>import { Style } from 'zeta.js';
+
+const card = Style.fill('rgba(56,189,248,0.14)').stroke('#38bdf8', 2);
+
+z.rect([22, 22], [128, 80]).radius(14).useStyle(card);
+z.circle([214, 64], 38).fill('#0b2a1e').stroke('#34d399', 2).dashed([7, 4]);
+
+z.path([308, 18])
+  .moveTo(20, 16)
+  .lineTo(110, 2)
+  .lineTo(170, 56)
+  .lineTo(136, 128)
+  .lineTo(44, 116)
+  .close()
+  .fill('rgba(244,114,182,0.16)')
+  .stroke('#f472b6', 2);
+
+z.line([168, 148], [490, 232])
+  .route('step', { radius: 10 })
+  .stroke('#fbbf24', 2)
+  .dashed([8, 4]);
+
+z.text('text() + font controls', [24, 156]).fontSize(12);
+z.tex('\\frac{\\alpha + \\beta}{\\sqrt{x}}', [24, 194], { displayMode: true });</code></pre>
+                </div>
+                <div class="demo-pane">
+                    <div id="demo-primitives" class="demo-surface"></div>
+                    <p class="demo-note">Live demo rendered with <strong data-renderer-readout>Canvas2D</strong></p>
+                </div>
+            </div>
+            <div class="api-list">
+                <div>Factories: <code>rect()</code>, <code>circle()</code>, <code>path()</code>, <code>line()</code>, <code>text()</code>, <code>tex()</code>, <code>group()</code></div>
+                <div>Transforms: <code>pos()</code>, <code>at()</code>, <code>move()</code>, <code>rotateTo()</code>, <code>scaleTo()</code>, <code>visible()</code></div>
+                <div>Styles: <code>fill()</code>, <code>stroke()</code>, <code>dashed()</code>, <code>opacity()</code>, <code>cursor()</code>, <code>useStyle()</code></div>
+            </div>
+        </section>
+
+        <section class="topic" id="anchors">
+            <h3>3) Anchors, Connectors, and Routing Modes</h3>
+            <p>Use <code>edge(from, to, opts)</code> for reactive connectors. Choose route mode and obstacle handling. Access named anchors or
+                perimeter ray sampling with <code>anchor.atAngle()</code>.</p>
+            <div class="topic-grid">
+                <div class="code-block">
+                    <pre><code>const edge = z.edge(a, b, {
+  from: 'right',
+  to: 'left',
+  route: 'orthogonal',
+  routeOptions: {
+    radius: 10,
+    avoidObstacles: true,
+  },
+  color: '#38bdf8',
+  width: 2,
+  dash: [6, 4],
+});
+
+const boxTop = a.anchor.box.top;
+const shapeRight = a.anchor.shape.right;
+const sampled = a.anchor.atAngle(42);
+
+z.line(a.anchor.center, sampled).stroke('#fbbf24', 1.6);</code></pre>
+                </div>
+                <div class="demo-pane">
+                    <div id="demo-anchors" class="demo-surface"></div>
+                    <p class="demo-note">Straight, step, and orthogonal routes with live angle sampling.</p>
+                </div>
+            </div>
+            <div class="api-list">
+                <div>Named anchors: <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code>, <code>center</code>, corners</div>
+                <div>Anchor semantics: <code>anchor.box.*</code> (bbox) vs <code>anchor.shape.*</code> (perimeter)</div>
+                <div>Route options: <code>straight</code>, <code>step</code>, <code>orthogonal</code>, with <code>radius</code> and <code>avoidObstacles</code></div>
+            </div>
+        </section>
+
+        <section class="topic" id="constraints">
+            <h3>4) Constraints, Follow Bindings, and Interactivity</h3>
+            <p>Relative layout stays live. Move one node and dependents follow automatically. Pointer events bubble, and drag helpers are built
+                in.</p>
+            <div class="topic-grid">
+                <div class="code-block">
+                    <pre><code>const leader = z.node('Leader', { at: [200, 108] })
+  .dragWithin([18, 26, 502, 286]);
+
+const left = z.node('Left').follow(leader, 'left', { gap: 44, align: 'center' });
+const right = z.node('Right').follow(leader, 'right', { gap: 44, align: 'center' });
+const below = z.node('Below').follow(leader, 'below', { gap: 42, align: 'center' });
+
+z.circle(6).follow(leader, 'topRight', { offset: [8, -8] });
+z.edge(leader, right, { route: 'step', routeOptions: { radius: 10 } });
+
+leader
+  .hover(() => leader.opacity(1), () => leader.opacity(0.95))
+  .click(() => leader.animate({ scale: 1.08 }, { duration: 120 }));
+
+const unwatch = leader.watchLayout(() => {
+  console.log('leader moved', leader.anchor.center);
+});</code></pre>
+                </div>
+                <div class="demo-pane">
+                    <div id="demo-constraints" class="demo-surface"></div>
+                    <p class="demo-note">Drag the leader; every follower and edge updates reactively.</p>
+                </div>
+            </div>
+            <div class="api-list">
+                <div>Directional constraints: <code>rightOf()</code>, <code>leftOf()</code>, <code>above()</code>, <code>below()</code></div>
+                <div>Binding helpers: <code>pin()</code>, <code>follow()</code>, <code>watchLayout()</code></div>
+                <div>Events and drag: <code>on()</code>, <code>off()</code>, <code>hover()</code>, <code>click()</code>, <code>draggable()</code>, <code>dragX()</code>, <code>dragY()</code>, <code>dragWithin()</code></div>
+            </div>
+        </section>
+
+        <section class="topic" id="layout">
+            <h3>5) Layout Macros, Panels, and Intent-Level Diagram APIs</h3>
+            <p>Use macro containers to avoid coordinate bookkeeping. Add framed panels with <code>container()</code>, and build quick diagrams with
+                <code>node()</code> + <code>edge()</code>.</p>
+            <div class="topic-grid">
+                <div class="code-block">
+                    <pre><code>const panel = z.container({
+  at: [14, 16],
+  size: [492, 286],
+  title: 'Workflow',
+  fill: 'rgba(15,23,42,0.64)',
+});
+
+const content = panel.content;
+
+const a = content.node('Ingest', { size: [96, 52] });
+const b = content.node('Transform', { size: [112, 52] });
+const c = content.node('Ship', { size: [90, 52] });
+
+content.row([a, b, c], { gap: 14, align: 'center' }).at([16, 16]);
+content.edge(a, b, { from: 'right', to: 'left' });
+content.edge(b, c, { from: 'right', to: 'left' });
+
+content.column([...], { gap: 8, align: 'left' }).at([16, 106]);
+content.grid([...], { columns: 3, gap: [8, 8] }).at([126, 106]);
+content.stack([...], { align: 'topLeft', offset: [10, 10] }).at([306, 110]);</code></pre>
+                </div>
+                <div class="demo-pane">
+                    <div id="demo-layout" class="demo-surface"></div>
+                    <p class="demo-note">Row, column, grid, and stack macros inside a titled container.</p>
+                </div>
+            </div>
+            <div class="api-list">
+                <div>Macros: <code>row()</code>, <code>column()</code>, <code>grid()</code>, <code>stack()</code> on both canvas and groups</div>
+                <div>Panel helper: <code>container(opts)</code> exposes <code>frame</code>, <code>titleNode</code>, and <code>content</code></div>
+                <div>Labeled nodes: <code>node(label, opts)</code> supports subtitle and ports</div>
+            </div>
+        </section>
+
+        <section class="topic" id="contexts">
+            <h3>6) Context Groups: Data Coordinates and Isometric Projection</h3>
+            <p>Group context changes coordinate behavior. Use <code>coords()</code> for data space and <code>project('isometric')</code> for pseudo-3D.
+            </p>
+            <div class="topic-grid">
+                <div class="code-block">
+                    <pre><code>const plot = z.group()
+  .at([18, 26])
+  .size([232, 188])
+  .coords({
+    x: { domain: [0, Math.PI * 2] },
+    y: { domain: [-1.2, 1.2] },
+  });
+
+plot.axes({ grid: true, xLabel: 'x', yLabel: 'f(x)', tickCount: 5 });
+plot.func((x) => Math.sin(x), { samples: 120 }).stroke('#38bdf8', 2);
+plot.func((x) => 0.5 * Math.cos(2 * x), { samples: 120 }).stroke('#f472b6', 2);
+plot.circle([Math.PI / 2, 1], 4);
+
+const iso = z.group().at([352, 194]).project('isometric', { angle: 30, scale: 15 });
+iso.line([0, 0, 0], [6, 0, 0]);
+iso.line([0, 0, 0], [0, 6, 0]);
+iso.line([1, 1, 0], [1, 1, 1.2]);</code></pre>
+                </div>
+                <div class="demo-pane">
+                    <div id="demo-contexts" class="demo-surface"></div>
+                    <p class="demo-note">Left: plotting coordinates. Right: isometric projection with 3D tuples.</p>
+                </div>
+            </div>
+            <div class="api-list">
+                <div>Plotting APIs: <code>size()</code>, <code>coords()</code>, <code>axes()</code>, <code>func()</code></div>
+                <div>Projection API: <code>project('isometric', { angle, scale })</code></div>
+                <div>Group-local factories accept tuples in context space: <code>group.rect/circle/text/path/line</code></div>
+            </div>
+        </section>
+
+        <section class="topic" id="animation">
+            <h3>7) Animation, Loops, and Motion Control</h3>
+            <p>Use declarative tweens for state transitions and <code>loop()</code> for continuous simulation-style updates. Loop callbacks receive
+                <code>(time, deltaTime)</code>.</p>
+            <div class="topic-grid">
+                <div class="code-block">
+                    <pre><code>source.click(() => {
+  source.animate(
+    { fill: '#6366f1', scale: 1.06 },
+    {
+      duration: 140,
+      onComplete: () => {
+        source.animate({ fill: sourceFill, scale: 1 }, { duration: 200 });
+      },
+    },
+  );
+});
+
+const stop = z.loop((time, dt) => {
+  const t = (Math.sin(time * 0.002) + 1) / 2;
+  const [sx, sy] = source.anchor.shape.right;
+  const [tx, ty] = sink.anchor.shape.left;
+  packet.pos(sx + (tx - sx) * t, sy + (ty - sy) * t);
+});
+
+// Optional cleanup:
+packet.stopAnimation();
+stop();</code></pre>
+                </div>
+                <div class="demo-pane">
+                    <div id="demo-animation" class="demo-surface"></div>
+                    <p class="demo-note">Click nodes and pulse badge. Packet motion is driven by <code>loop()</code>.</p>
+                </div>
+            </div>
+            <div class="api-list">
+                <div>Animate props: <code>pos</code>, <code>rotation</code>, <code>scale</code>, <code>opacity</code>, <code>fill</code>, <code>stroke</code></div>
+                <div>Animation options: <code>duration</code>, <code>delay</code>, <code>ease</code>, <code>onComplete</code></div>
+                <div>Easing names: <code>linear</code>, <code>quad*</code>, <code>cubic*</code></div>
+            </div>
+        </section>
+
+        <section class="topic" id="debug">
+            <h3>8) Themes and Geometry Debug Snapshots</h3>
+            <p>Apply default visual recipes with <code>theme()</code> and inspect resolved geometry with <code>debugSnapshot()</code>. The snapshot gives
+                bounds, anchors, and route points for custom overlays.</p>
+            <div class="topic-grid">
+                <div class="code-block">
+                    <pre><code>z.theme('diagram');
+
+const a = z.node('A', { at: [42, 78] });
+const b = z.node('B', { at: [218, 164] });
+const c = z.node('C', { at: [390, 84] });
+
+const ab = z.edge(a, b, {
+  route: 'orthogonal',
+  routeOptions: { radius: 10, avoidObstacles: true },
+});
+
+const snapshot = z.debugSnapshot({
+  bounds: true,
+  anchors: true,
+  routes: true,
+});
+
+// draw your own overlays from snapshot.bounds / snapshot.anchors / snapshot.routes</code></pre>
+                </div>
+                <div class="demo-pane">
+                    <div id="demo-debug" class="demo-surface"></div>
+                    <p class="demo-note">Drag nodes to see the debug overlay (bounds, route traces, sampled anchors) refresh.</p>
+                </div>
+            </div>
+            <div class="api-list">
+                <div><code>theme(nameOrTheme)</code> merges defaults rather than replacing everything</div>
+                <div><code>debugSnapshot(opts)</code> returns structured diagnostics for custom dev tooling</div>
+            </div>
+        </section>
+
+        <section class="topic" id="plugins">
+            <h3>9) Plugin API: Extend Canvas and Group Methods</h3>
+            <p>Plugins run once via <code>Z.use()</code>. <code>defineShape()</code> and <code>defineMacro()</code> register methods on both
+                <code>Canvas</code> and <code>Group</code> hosts.</p>
+            <div class="code-block">
+                <pre><code>import Z from 'zeta.js';
+
+type PillAttrs = {
+  at?: [number, number];
+  size?: [number, number];
+  fill?: string;
+};
+
+Z.defineShape&lt;PillAttrs&gt;('pill', (host, attrs = {}) => {
+  const at = attrs.at ?? [0, 0];
+  const size = attrs.size ?? [120, 40];
+  const fill = attrs.fill ?? 'rgba(56,189,248,0.15)';
+
+  return host.rect(at, size)
+    .radius(size[1] / 2)
+    .fill(fill)
+    .stroke('#38bdf8', 1.6);
+});
+
+Z.defineMacro('pair', (host) => {
+  const left = host.node('Left', { at: [20, 20] });
+  const right = host.node('Right', { at: [220, 20] });
+  host.edge(left, right, { route: 'straight' });
+  return { left, right };
+});
+
+const z = new Z.Canvas('#figure');
+const pill = z.pill({ at: [80, 160] });
+const pair = z.pair();</code></pre>
+            </div>
+            <div class="api-list">
+                <div><code>Z.use(plugin)</code>: idempotent plugin registration</div>
+                <div><code>Z.defineShape(name, factory)</code> and <code>Z.defineMacro(name, factory)</code> reject duplicate names</div>
+                <div><code>Z.midpoint(a, b)</code> helper returns tuple midpoint from world bbox centers</div>
+            </div>
+        </section>
+
+        <section class="topic" id="reactive">
+            <h3>10) Reactive Utilities and Math Helpers</h3>
+            <p>Zeta exports lightweight reactive primitives and geometry classes for advanced behaviors and tooling.</p>
+            <div class="code-block">
+                <pre><code>import {
+  signal,
+  computed,
+  batch,
+  Vec2,
+  BBox,
+  Matrix3,
+  perimeterPoint,
+  rayShapeIntersection,
+} from 'zeta.js';
+
+const zoom = signal(1);
+const accent = signal('#38bdf8');
+
+const strokeWidth = computed(() => Math.max(1, zoom.get() * 1.4));
+strokeWidth.subscribe((w) => console.log('new width', w));
+
+batch(() => {
+  zoom.set(1.5);
+  accent.set('#34d399');
+});
+
+const center = new Vec2(100, 100);
+const bbox = BBox.fromPosSize(60, 60, 80, 50);
+const hit = perimeterPoint(center, 45, { type: 'rect', bbox });
+const world = Matrix3.translate(20, 10).transformPoint(hit);</code></pre>
+            </div>
+            <div class="api-list">
+                <div>Reactive exports: <code>Signal</code>, <code>Computed</code>, <code>signal()</code>, <code>computed()</code>, <code>batch()</code></div>
+                <div>Math exports: <code>Vec2</code>, <code>BBox</code>, <code>Matrix3</code>, intersection helpers</div>
+            </div>
+        </section>
+
+        <section class="topic" id="lifecycle">
+            <h3>11) Renderer Access, SVG Export, and Cleanup</h3>
+            <p>Renderer access is useful for diagnostics and exports. If using SVG renderer, you can serialize the scene. Always dispose when a
+                canvas is no longer needed.</p>
+            <div class="code-block">
+                <pre><code>import Z, { SVGRenderer } from 'zeta.js';
+
+const z = new Z.Canvas('#figure', { renderer: 'svg', width: 800, height: 420 });
+
+// build scene...
+z.flush();
+
+const renderer = z.getRenderer();
+if (renderer instanceof SVGRenderer) {
+  const svgText = renderer.export();
+  console.log(svgText);
+}
+
+const stop = z.loop((time, dt) => {
+  // update scene over time
+});
+
+// later:
+stop();
+z.dispose();</code></pre>
+            </div>
+            <div class="api-list">
+                <div><code>flush()</code> forces synchronous rendering, useful for tests and snapshot workflows</div>
+                <div><code>dispose()</code> detaches listeners, clears scene internals, and removes renderer DOM</div>
+            </div>
+        </section>
+
+        <p class="footer">Zeta.js tutorial page · Comprehensive API walkthrough with runnable demos</p>
+    </div>
+
+    <script type="module" src="./tutorial.ts"></script>
+</body>
+
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zeta.js Starter</title>
+    <style>
+        :root {
+            --bg-0: #f8fafc;
+            --bg-1: #e2e8f0;
+            --ink: #0f172a;
+            --muted: #475569;
+            --panel: #ffffff;
+            --panel-border: #cbd5e1;
+            --shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(circle at 12% 18%, rgba(125, 211, 252, 0.35), transparent 28%),
+                radial-gradient(circle at 88% 82%, rgba(251, 191, 36, 0.28), transparent 30%),
+                linear-gradient(145deg, var(--bg-0), var(--bg-1));
+            color: var(--ink);
+            font-family: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+            padding: 20px;
+        }
+
+        main {
+            width: min(96vw, 1100px);
+            display: grid;
+            gap: 12px;
+            justify-items: center;
+        }
+
+        .hint {
+            font-size: 13px;
+            letter-spacing: 0.01em;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        #figure {
+            width: min(96vw, 1040px);
+            height: min(78vh, 680px);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        #figure canvas,
+        #figure svg {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="hint">Open DevTools and use <code>window.z</code> and <code>window.Z</code></div>
+        <div id="figure" aria-label="Zeta diagram canvas"></div>
+    </main>
+
+    <script type="module">
+        import Z from '../src/index.ts';
+
+        const mount = document.getElementById('figure');
+        if (!mount) {
+            throw new Error('Missing #figure mount element');
+        }
+
+
+
+
+        const z = new Z.Canvas(mount, {
+            renderer: 'svg',
+            responsive: true,
+        });
+
+        z.theme('diagram');
+
+        // draw a grid
+
+        const X_range = 100;
+        const Y_range = 100;
+
+        for (let i = 0; i < X_range; i++) {
+            z.line([i * 10, 0], [i * 10, Y_range * 100]).stroke('#e2e8f0', 1);
+        }
+
+        for (let i = 0; i < Y_range; i++) {
+            z.line([0, i * 10], [X_range * 10, i * 10]).stroke('#e2e8f0', 1);
+        }
+        const a = z.node('Start', { at: [100, 220], subtitle: 'drag me', size: [160, 72] }).dragWithin();
+        const b = z.node('Process', { at: [420, 220], subtitle: 'drag me', size: [180, 72] }).dragWithin();
+        const c = z.node('Done', { at: [770, 220], subtitle: 'drag me', size: [150, 72] }).dragWithin();
+        const d = z.node('Other One', { at: [100, 420], subtitle: 'drag me', size: [150, 72] }).dragWithin();
+
+        z.edge(a, b, {
+            route: 'step',
+            routeOptions: { radius: 10 },
+        });
+
+        z.edge(b, c, {
+            route: 'orthogonal',
+            routeOptions: { radius: 10 },
+        });
+
+        z.edge(b, d, {
+            route: 'straight',
+            routeOptions: { radius: 10 },
+        });
+
+        z.text('Starter scene loaded. Edit this script or drive it from the console.', [24, 34])
+            .fill('#334155')
+            .fontSize(13)
+            .fontFamily("'IBM Plex Sans', 'Avenir Next', sans-serif");
+
+        z.flush();
+
+        window.Z = Z;
+        window.z = z;
+
+        window.addEventListener('beforeunload', () => {
+            z.dispose();
+        });
+    </script>
+</body>
+
+</html>

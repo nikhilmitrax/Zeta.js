@@ -1,0 +1,313 @@
+<mxfile host="app.diagrams.net" agent="Antigravity" version="26.0.0">
+  <diagram name="Zeta.js Infographic" id="zeta-infographic">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Background gradient panel -->
+        <mxCell id="bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=none;arcSize=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1560" height="1060" as="geometry" />
+        </mxCell>
+
+        <!-- Title Banner -->
+        <mxCell id="title" value="&lt;font style=&quot;font-size:36px;color:#e0e0ff;font-family:Inter,sans-serif;&quot;&gt;&lt;b&gt;⚡ ZETA.JS&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:14px;color:#8888cc;&quot;&gt;The Universal Web Drawing Engine — Declarative, Reactive, Renderer-Agnostic&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="480" y="35" width="640" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Version Badge -->
+        <mxCell id="version" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:11px;&quot;&gt;v0.1.0 · TypeScript · MIT&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16213e;strokeColor=#00ffa3;strokeWidth=1;arcSize=50;" vertex="1" parent="1">
+          <mxGeometry x="680" y="105" width="200" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 1: Core Architecture (left column) -->
+        <mxCell id="core_header" value="&lt;font style=&quot;font-size:16px;color:#ff6b6b;&quot;&gt;&lt;b&gt;🧠 CORE ARCHITECTURE&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="150" width="300" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Signal System -->
+        <mxCell id="signal_box" value="&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;Signal System&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#aaaadd&quot; style=&quot;font-size:11px;&quot;&gt;signal() · computed() · batch()&lt;br&gt;Fine-grained reactivity for&lt;br&gt;automatic dirty-flagging&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0f3460;strokeColor=#5555aa;strokeWidth=2;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="190" width="230" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Scene Graph -->
+        <mxCell id="scene_box" value="&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;Reactive Scene Graph&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#aaaadd&quot; style=&quot;font-size:11px;&quot;&gt;SceneNode · Group · Scene&lt;br&gt;Retained-mode tree with&lt;br&gt;automatic re-rendering&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0f3460;strokeColor=#5555aa;strokeWidth=2;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="295" width="230" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Style Manager -->
+        <mxCell id="style_box" value="&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;Style Manager&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#aaaadd&quot; style=&quot;font-size:11px;&quot;&gt;Chainable styling API&lt;br&gt;.fill() · .stroke() · .dashed()&lt;br&gt;.opacity() · .radius()&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0f3460;strokeColor=#5555aa;strokeWidth=2;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="400" width="230" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Signal -> Scene -->
+        <mxCell id="arrow1" value="" style="endArrow=classic;html=1;strokeColor=#5555aa;strokeWidth=2;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" edge="1" parent="1" source="signal_box" target="scene_box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Scene -> Style -->
+        <mxCell id="arrow2" value="" style="endArrow=classic;html=1;strokeColor=#5555aa;strokeWidth=2;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" edge="1" parent="1" source="scene_box" target="style_box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 2: Math Kernel (center-left) -->
+        <mxCell id="math_header" value="&lt;font style=&quot;font-size:16px;color:#feca57;&quot;&gt;&lt;b&gt;📐 GEOMETRY KERNEL&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="350" y="150" width="280" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="vec2_box" value="&lt;font color=&quot;#feca57&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Vec2&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ccccaa&quot; style=&quot;font-size:10px;&quot;&gt;add · sub · scale&lt;br&gt;dot · lerp · normalize&lt;br&gt;distance · angle&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a3e;strokeColor=#feca57;strokeWidth=2;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="350" y="190" width="130" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bbox_box" value="&lt;font color=&quot;#feca57&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;BBox&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ccccaa&quot; style=&quot;font-size:10px;&quot;&gt;Bounding boxes&lt;br&gt;intersection · union&lt;br&gt;contains · expand&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a3e;strokeColor=#feca57;strokeWidth=2;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="495" y="190" width="130" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="matrix_box" value="&lt;font color=&quot;#feca57&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Matrix3&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ccccaa&quot; style=&quot;font-size:10px;&quot;&gt;3x3 affine transforms&lt;br&gt;translate · rotate · scale&lt;br&gt;multiply · invert&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a3e;strokeColor=#feca57;strokeWidth=2;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="350" y="290" width="275" height="75" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 3: Shape Primitives (center) -->
+        <mxCell id="shapes_header" value="&lt;font style=&quot;font-size:16px;color:#48dbfb;&quot;&gt;&lt;b&gt;🔷 SHAPE PRIMITIVES&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="350" y="385" width="280" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Shape icons in a row -->
+        <mxCell id="rect_shape" value="&lt;font color=&quot;#48dbfb&quot; style=&quot;font-size:20px;&quot;&gt;▬&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ccee&quot; style=&quot;font-size:10px;&quot;&gt;Rect&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#48dbfb;strokeWidth=2;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="350" y="420" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="circle_shape" value="&lt;font color=&quot;#48dbfb&quot; style=&quot;font-size:20px;&quot;&gt;●&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ccee&quot; style=&quot;font-size:10px;&quot;&gt;Circle&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#48dbfb;strokeWidth=2;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="430" y="420" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="path_shape" value="&lt;font color=&quot;#48dbfb&quot; style=&quot;font-size:20px;&quot;&gt;〰&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ccee&quot; style=&quot;font-size:10px;&quot;&gt;Path&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#48dbfb;strokeWidth=2;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="510" y="420" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="text_shape" value="&lt;font color=&quot;#48dbfb&quot; style=&quot;font-size:20px;&quot;&gt;T&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ccee&quot; style=&quot;font-size:10px;&quot;&gt;Text&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#48dbfb;strokeWidth=2;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="350" y="490" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="line_shape" value="&lt;font color=&quot;#48dbfb&quot; style=&quot;font-size:20px;&quot;&gt;╱&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ccee&quot; style=&quot;font-size:10px;&quot;&gt;Line&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#48dbfb;strokeWidth=2;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="430" y="490" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 4: Renderers (right side) -->
+        <mxCell id="render_header" value="&lt;font style=&quot;font-size:16px;color:#ff9ff3;&quot;&gt;&lt;b&gt;🖼️ RENDERERS&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="690" y="150" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="canvas2d" value="&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;Canvas2D&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ddaaee&quot; style=&quot;font-size:10px;&quot;&gt;Default renderer&lt;br&gt;High performance&lt;br&gt;Immediate mode output&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d1b4e;strokeColor=#ff9ff3;strokeWidth=2;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="190" width="155" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="svgr" value="&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;SVG&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ddaaee&quot; style=&quot;font-size:10px;&quot;&gt;Accessible output&lt;br&gt;Scientific paper export&lt;br&gt;DOM-based rendering&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d1b4e;strokeColor=#ff9ff3;strokeWidth=2;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="860" y="190" width="155" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="webgl_future" value="&lt;font color=&quot;#888888&quot; style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;WebGL&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot; style=&quot;font-size:10px;&quot;&gt;Future: 3D projections&lt;br&gt;10k+ node scenes&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#555555;strokeWidth=1;dashed=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="770" y="290" width="155" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Renderer interface box -->
+        <mxCell id="renderer_iface" value="&lt;font color=&quot;#ff9ff3&quot; style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;Renderer Interface&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:9px;&quot;&gt;beginRender · drawShape · endRender&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ff9ff3;strokeWidth=1;arcSize=12;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="375" width="325" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows from renderers to interface -->
+        <mxCell id="r_arr1" value="" style="endArrow=classic;html=1;strokeColor=#ff9ff3;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.25;entryY=0;dashed=1;" edge="1" parent="1" source="canvas2d" target="renderer_iface">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_arr2" value="" style="endArrow=classic;html=1;strokeColor=#ff9ff3;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.75;entryY=0;dashed=1;" edge="1" parent="1" source="svgr" target="renderer_iface">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 5: Data Flow (center large arrow) -->
+        <mxCell id="flow_header" value="&lt;font style=&quot;font-size:16px;color:#00ffa3;&quot;&gt;&lt;b&gt;⚙️ DATA FLOW&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="545" y="590" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Flow boxes -->
+        <mxCell id="flow1" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;1. API Call&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ddaa&quot; style=&quot;font-size:9px;&quot;&gt;z.rect() / z.circle()&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=2;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="60" y="630" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="flow2" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;2. Node Creation&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ddaa&quot; style=&quot;font-size:9px;&quot;&gt;SceneNode + Signals&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=2;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="260" y="630" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="flow3" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;3. Scene Graph&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ddaa&quot; style=&quot;font-size:9px;&quot;&gt;Tree insert + dirty flag&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=2;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="460" y="630" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="flow4" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;4. BBox Compute&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ddaa&quot; style=&quot;font-size:9px;&quot;&gt;Matrix3 transforms&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=2;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="660" y="630" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="flow5" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;5. Render&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#88ddaa&quot; style=&quot;font-size:9px;&quot;&gt;Canvas2D / SVG output&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=2;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="860" y="630" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Flow arrows -->
+        <mxCell id="fa1" value="" style="endArrow=classic;html=1;strokeColor=#00ffa3;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="flow1" target="flow2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa2" value="" style="endArrow=classic;html=1;strokeColor=#00ffa3;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="flow2" target="flow3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa3" value="" style="endArrow=classic;html=1;strokeColor=#00ffa3;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="flow3" target="flow4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa4" value="" style="endArrow=classic;html=1;strokeColor=#00ffa3;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="flow4" target="flow5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 6: Implementation Phases (bottom) -->
+        <mxCell id="phase_header" value="&lt;font style=&quot;font-size:16px;color:#54a0ff;&quot;&gt;&lt;b&gt;🗺️ IMPLEMENTATION ROADMAP&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="710" width="350" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 1 -->
+        <mxCell id="phase1" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;PHASE 1 ✅&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:11px;&quot;&gt;Core Kernel &amp; RSG&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;Signals · Primitives · Canvas2D&lt;br&gt;SVG · Styling · Scene Graph&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=2;arcSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="750" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 2 -->
+        <mxCell id="phase2" value="&lt;font color=&quot;#feca57&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;PHASE 2&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:11px;&quot;&gt;Ergonomics &amp; Intersections&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;Relative positioning · Anchors&lt;br&gt;BVH · Ray-shape intersections&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d2a0a;strokeColor=#feca57;strokeWidth=2;arcSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="310" y="750" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 3 -->
+        <mxCell id="phase3" value="&lt;font color=&quot;#54a0ff&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;PHASE 3&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:11px;&quot;&gt;Routing &amp; Contexts&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;A* routing · Data coordinates&lt;br&gt;Isometric projections · Axes&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a1a3d;strokeColor=#54a0ff;strokeWidth=2;arcSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="750" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 4 -->
+        <mxCell id="phase4" value="&lt;font color=&quot;#ff9ff3&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;PHASE 4&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#ffffff&quot; style=&quot;font-size:11px;&quot;&gt;Interactivity &amp; Plugins&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;Events · Draggable · Animate&lt;br&gt;Z.use() · Plugin ecosystem&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d1b3d;strokeColor=#ff9ff3;strokeWidth=2;arcSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="810" y="750" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Phase arrows -->
+        <mxCell id="pa1" value="" style="endArrow=classic;html=1;strokeColor=#555;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="phase1" target="phase2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pa2" value="" style="endArrow=classic;html=1;strokeColor=#555;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="phase2" target="phase3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pa3" value="" style="endArrow=classic;html=1;strokeColor=#555;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="phase3" target="phase4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 7: Key Features (right column) -->
+        <mxCell id="feat_header" value="&lt;font style=&quot;font-size:16px;color:#ff6348;&quot;&gt;&lt;b&gt;🚀 KEY FEATURES&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="150" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="feat1" value="&lt;font color=&quot;#ff6348&quot; style=&quot;font-size:18px;&quot;&gt;⚡&lt;/font&gt; &lt;font color=&quot;#ffffff&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Declarative API&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;Draw by hand via code&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1510;strokeColor=#ff6348;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="190" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="feat2" value="&lt;font color=&quot;#ff6348&quot; style=&quot;font-size:18px;&quot;&gt;🔄&lt;/font&gt; &lt;font color=&quot;#ffffff&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Reactive Updates&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;Automatic re-render on change&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1510;strokeColor=#ff6348;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="250" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="feat3" value="&lt;font color=&quot;#ff6348&quot; style=&quot;font-size:18px;&quot;&gt;🎯&lt;/font&gt; &lt;font color=&quot;#ffffff&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Anchor System&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;Perimeter-aware connections&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1510;strokeColor=#ff6348;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="310" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="feat4" value="&lt;font color=&quot;#ff6348&quot; style=&quot;font-size:18px;&quot;&gt;🔌&lt;/font&gt; &lt;font color=&quot;#ffffff&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Plugin Architecture&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;Z.use() extensibility&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1510;strokeColor=#ff6348;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="370" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="feat5" value="&lt;font color=&quot;#ff6348&quot; style=&quot;font-size:18px;&quot;&gt;🎨&lt;/font&gt; &lt;font color=&quot;#ffffff&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Multi-Renderer&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;Canvas2D, SVG, WebGL&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1510;strokeColor=#ff6348;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="430" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="feat6" value="&lt;font color=&quot;#ff6348&quot; style=&quot;font-size:18px;&quot;&gt;📦&lt;/font&gt; &lt;font color=&quot;#ffffff&quot; style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;Zero Dependencies&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;Tree-shakable, &amp;lt; 80kb gzip&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1510;strokeColor=#ff6348;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="490" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- SECTION 8: Code Example (bottom right) -->
+        <mxCell id="code_header" value="&lt;font style=&quot;font-size:16px;color:#c8d6e5;&quot;&gt;&lt;b&gt;💻 API EXAMPLE&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="560" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="code_box" value="&lt;pre style=&quot;text-align:left;font-family:monospace;font-size:10px;color:#c8d6e5;margin:8px;&quot;&gt;&lt;font color=&quot;#c792ea&quot;&gt;import&lt;/font&gt; Z &lt;font color=&quot;#c792ea&quot;&gt;from&lt;/font&gt; &lt;font color=&quot;#c3e88d&quot;&gt;'zeta.js'&lt;/font&gt;;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#c792ea&quot;&gt;const&lt;/font&gt; z = &lt;font color=&quot;#c792ea&quot;&gt;new&lt;/font&gt; Z.Canvas(&lt;font color=&quot;#c3e88d&quot;&gt;'#fig'&lt;/font&gt;);&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#82aaff&quot;&gt;// Chainable primitives&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#c792ea&quot;&gt;const&lt;/font&gt; a = z.rect(&lt;br&gt;  [100,100], [50,50]&lt;br&gt;).fill(&lt;font color=&quot;#f07178&quot;&gt;'#f00'&lt;/font&gt;).radius(4);&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#c792ea&quot;&gt;const&lt;/font&gt; b = z.circle(&lt;br&gt;  [0,0], 25&lt;br&gt;).dashed([5,5]);&lt;/pre&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d1117;strokeColor=#30363d;strokeWidth=2;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="595" width="220" height="210" as="geometry" />
+        </mxCell>
+
+        <!-- NFR Stats (bottom center) -->
+        <mxCell id="nfr_header" value="&lt;font style=&quot;font-size:16px;color:#c8d6e5;&quot;&gt;&lt;b&gt;📊 NON-FUNCTIONAL REQUIREMENTS&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="860" width="400" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nfr1" value="&lt;font color=&quot;#54a0ff&quot; style=&quot;font-size:22px;&quot;&gt;&lt;b&gt;&amp;lt; 80kb&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;gzipped bundle&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a1a3d;strokeColor=#54a0ff;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="900" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nfr2" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:22px;&quot;&gt;&lt;b&gt;10k+&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;static nodes&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="900" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nfr3" value="&lt;font color=&quot;#feca57&quot; style=&quot;font-size:22px;&quot;&gt;&lt;b&gt;60fps&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;1k animated nodes&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d2a0a;strokeColor=#feca57;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="900" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nfr4" value="&lt;font color=&quot;#ff6348&quot; style=&quot;font-size:22px;&quot;&gt;&lt;b&gt;0&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;runtime dependencies&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1510;strokeColor=#ff6348;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="540" y="900" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nfr5" value="&lt;font color=&quot;#ff9ff3&quot; style=&quot;font-size:22px;&quot;&gt;&lt;b&gt;SSR&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;headless Node.js&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d1b3d;strokeColor=#ff9ff3;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="700" y="900" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nfr6" value="&lt;font color=&quot;#48dbfb&quot; style=&quot;font-size:22px;&quot;&gt;&lt;b&gt;TS&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#999&quot; style=&quot;font-size:10px;&quot;&gt;strict TypeScript&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#48dbfb;strokeWidth=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="860" y="900" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Plugin examples (right of phases) -->
+        <mxCell id="plugin_header" value="&lt;font style=&quot;font-size:16px;color:#c8d6e5;&quot;&gt;&lt;b&gt;🧩 PLUGIN ECOSYSTEM&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="820" width="250" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="plug1" value="&lt;font color=&quot;#48dbfb&quot; style=&quot;font-size:10px;&quot;&gt;&lt;b&gt;zeta-chem&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;Chemistry diagrams&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#48dbfb;strokeWidth=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="855" width="105" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="plug2" value="&lt;font color=&quot;#feca57&quot; style=&quot;font-size:10px;&quot;&gt;&lt;b&gt;zeta-elec&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;Circuit schematics&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d2a0a;strokeColor=#feca57;strokeWidth=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="1205" y="855" width="105" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="plug3" value="&lt;font color=&quot;#ff9ff3&quot; style=&quot;font-size:10px;&quot;&gt;&lt;b&gt;zeta-nn&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;Neural net diagrams&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d1b3d;strokeColor=#ff9ff3;strokeWidth=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="905" width="105" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="plug4" value="&lt;font color=&quot;#00ffa3&quot; style=&quot;font-size:10px;&quot;&gt;&lt;b&gt;custom...&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:9px;&quot;&gt;Z.defineShape()&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3d2a;strokeColor=#00ffa3;strokeWidth=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="1205" y="905" width="105" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Connection: Core -> Shapes -->
+        <mxCell id="conn1" value="" style="endArrow=classic;html=1;strokeColor=#333;strokeWidth=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;dashed=1;" edge="1" parent="1" source="style_box" target="rect_shape">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Connection: Math -> Shapes -->
+        <mxCell id="conn2" value="" style="endArrow=classic;html=1;strokeColor=#333;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;dashed=1;" edge="1" parent="1" source="matrix_box" target="path_shape">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Connection: Shapes -> Renderers -->
+        <mxCell id="conn3" value="" style="endArrow=classic;html=1;strokeColor=#333;strokeWidth=1;exitX=1;exitY=0;entryX=0;entryY=1;dashed=1;" edge="1" parent="1" source="line_shape" target="renderer_iface">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Tagline footer -->
+        <mxCell id="footer" value="&lt;font style=&quot;font-size:11px;color:#555;&quot;&gt;Zeta.js — Draw by hand, via code. | github.com/zeta-js&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="540" y="990" width="400" height="25" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
