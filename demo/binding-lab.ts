@@ -1,5 +1,5 @@
 import type { RendererType } from '../src/canvas';
-import { caption, createCanvas, makeDraggable, mountRendererDemo, title } from './demo-kit';
+import { caption, createCanvas, makeDraggable, mountRendererDemo, rel, title } from './demo-kit';
 
 const WIDTH = 980;
 const HEIGHT = 640;
@@ -17,8 +17,8 @@ function createDemo(renderer: RendererType) {
     );
 
     const source = makeDraggable(z.node('Source', {
-        at: [144, 236],
-        size: [178, 98],
+        at: [rel(144, WIDTH), rel(236, HEIGHT)],
+        size: [rel(178, WIDTH), rel(98, HEIGHT)],
         subtitle: 'event stream',
         fill: 'rgba(99,102,241,0.18)',
         stroke: '#818cf8',
@@ -27,8 +27,8 @@ function createDemo(renderer: RendererType) {
     }));
 
     const sink = makeDraggable(z.node('Sink', {
-        at: [646, 256],
-        size: [188, 108],
+        at: [rel(646, WIDTH), rel(256, HEIGHT)],
+        size: [rel(188, WIDTH), rel(108, HEIGHT)],
         subtitle: 'warehouse',
         fill: 'rgba(56,189,248,0.18)',
         stroke: '#38bdf8',
@@ -37,7 +37,7 @@ function createDemo(renderer: RendererType) {
     }));
 
     const qa = z.node('QA', {
-        size: [116, 62],
+        size: [rel(116, WIDTH), rel(62, HEIGHT)],
         subtitle: 'checks',
         fill: 'rgba(16,185,129,0.16)',
         stroke: '#34d399',
@@ -46,7 +46,7 @@ function createDemo(renderer: RendererType) {
     }).follow(source, 'below', { gap: 56, align: 'center' });
 
     const ops = z.node('Ops', {
-        size: [116, 62],
+        size: [rel(116, WIDTH), rel(62, HEIGHT)],
         subtitle: 'release',
         fill: 'rgba(251,191,36,0.16)',
         stroke: '#fbbf24',

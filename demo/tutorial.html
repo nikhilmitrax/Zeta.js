@@ -405,8 +405,8 @@ const z = new Z.Canvas('#figure', {
 
 z.theme('diagram');
 
-const a = z.node('API', { at: [80, 120] });
-const b = z.node('Worker', { at: [320, 120] });
+const a = z.node('API', { at: ['8.3%', '22.2%'], size: ['16%', '13%'] });
+const b = z.node('Worker', { at: ['33.3%', '22.2%'], size: ['18%', '13%'] });
 z.edge(a, b, { route: 'orthogonal' });
 
 z.flush();</code></pre>
@@ -414,6 +414,7 @@ z.flush();</code></pre>
             <div class="api-list">
                 <div><code>CanvasOptions</code>: <code>renderer</code>, <code>width</code>, <code>height</code>, <code>responsive</code></div>
                 <div><code>theme(nameOrTheme)</code>: built-ins include <code>'diagram'</code> and <code>'slate'</code></div>
+                <div>Demo convention: component <code>at</code>/<code>size</code> uses <code>%</code>; keep px for low-level geometry when needed</div>
                 <div><code>getRenderer()</code>, <code>getScene()</code>, <code>flush()</code>, <code>loop()</code>, <code>dispose()</code></div>
             </div>
         </section>
@@ -504,7 +505,7 @@ z.line(a.anchor.center, sampled).stroke('#fbbf24', 1.6);</code></pre>
                 in.</p>
             <div class="topic-grid">
                 <div class="code-block">
-                    <pre><code>const leader = z.node('Leader', { at: [200, 108] })
+                    <pre><code>const leader = z.node('Leader', { at: ['38.5%', '36%'], size: ['24.6%', '24%'] })
   .dragWithin([18, 26, 502, 286]);
 
 const left = z.node('Left').follow(leader, 'left', { gap: 44, align: 'center' });
@@ -541,25 +542,25 @@ const unwatch = leader.watchLayout(() => {
             <div class="topic-grid">
                 <div class="code-block">
                     <pre><code>const panel = z.container({
-  at: [14, 16],
-  size: [492, 286],
+  at: ['2.7%', '5%'],
+  size: ['94.6%', '89.4%'],
   title: 'Workflow',
   fill: 'rgba(15,23,42,0.64)',
 });
 
 const content = panel.content;
 
-const a = content.node('Ingest', { size: [96, 52] });
-const b = content.node('Transform', { size: [112, 52] });
-const c = content.node('Ship', { size: [90, 52] });
+const a = content.node('Ingest', { size: ['20.9%', '22.5%'] });
+const b = content.node('Transform', { size: ['24.3%', '22.5%'] });
+const c = content.node('Ship', { size: ['19.6%', '22.5%'] });
 
-content.row([a, b, c], { gap: 14, align: 'center' }).at([16, 16]);
+content.row([a, b, c], { gap: 14, align: 'center' }).at(['3.5%', '6.9%']);
 content.edge(a, b, { from: 'right', to: 'left' });
 content.edge(b, c, { from: 'right', to: 'left' });
 
-content.column([...], { gap: 8, align: 'left' }).at([16, 106]);
-content.grid([...], { columns: 3, gap: [8, 8] }).at([126, 106]);
-content.stack([...], { align: 'topLeft', offset: [10, 10] }).at([306, 110]);</code></pre>
+content.column([...], { gap: 8, align: 'left' }).at(['3.5%', '45.9%']);
+content.grid([...], { columns: 3, gap: [8, 8] }).at(['27.4%', '45.9%']);
+content.stack([...], { align: 'topLeft', offset: [10, 10] }).at(['66.5%', '47.6%']);</code></pre>
                 </div>
                 <div class="demo-pane">
                     <div id="demo-layout" class="demo-surface"></div>
@@ -580,8 +581,8 @@ content.stack([...], { align: 'topLeft', offset: [10, 10] }).at([306, 110]);</co
             <div class="topic-grid">
                 <div class="code-block">
                     <pre><code>const plot = z.group()
-  .at([18, 26])
-  .size([232, 188])
+  .at(['3.5%', '8.7%'])
+  .size(['44.6%', '62.7%'])
   .coords({
     x: { domain: [0, Math.PI * 2] },
     y: { domain: [-1.2, 1.2] },
@@ -592,7 +593,7 @@ plot.func((x) => Math.sin(x), { samples: 120 }).stroke('#38bdf8', 2);
 plot.func((x) => 0.5 * Math.cos(2 * x), { samples: 120 }).stroke('#f472b6', 2);
 plot.circle([Math.PI / 2, 1], 4);
 
-const iso = z.group().at([352, 194]).project('isometric', { angle: 30, scale: 15 });
+const iso = z.group().at(['67.7%', '64.7%']).project('isometric', { angle: 30, scale: 15 });
 iso.line([0, 0, 0], [6, 0, 0]);
 iso.line([0, 0, 0], [0, 6, 0]);
 iso.line([1, 1, 0], [1, 1, 1.2]);</code></pre>
@@ -658,9 +659,9 @@ stop();</code></pre>
                 <div class="code-block">
                     <pre><code>z.theme('diagram');
 
-const a = z.node('A', { at: [42, 78] });
-const b = z.node('B', { at: [218, 164] });
-const c = z.node('C', { at: [390, 84] });
+const a = z.node('A', { at: ['8.1%', '26.9%'] });
+const b = z.node('B', { at: ['41.9%', '56.6%'] });
+const c = z.node('C', { at: ['75%', '29%'] });
 
 const ab = z.edge(a, b, {
   route: 'orthogonal',
@@ -693,9 +694,11 @@ const snapshot = z.debugSnapshot({
             <div class="code-block">
                 <pre><code>import Z from 'zeta.js';
 
+type Unit = number | `${number}%`;
+
 type PillAttrs = {
-  at?: [number, number];
-  size?: [number, number];
+  at?: [Unit, Unit];
+  size?: [Unit, Unit];
   fill?: string;
 };
 
@@ -711,14 +714,14 @@ Z.defineShape&lt;PillAttrs&gt;('pill', (host, attrs = {}) => {
 });
 
 Z.defineMacro('pair', (host) => {
-  const left = host.node('Left', { at: [20, 20] });
-  const right = host.node('Right', { at: [220, 20] });
+  const left = host.node('Left', { at: ['8%', '10%'] });
+  const right = host.node('Right', { at: ['42%', '10%'] });
   host.edge(left, right, { route: 'straight' });
   return { left, right };
 });
 
 const z = new Z.Canvas('#figure');
-const pill = z.pill({ at: [80, 160] });
+const pill = z.pill({ at: ['12%', '40%'] });
 const pair = z.pair();</code></pre>
             </div>
             <div class="api-list">

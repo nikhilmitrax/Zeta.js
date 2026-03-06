@@ -106,10 +106,10 @@
         for (let i = 0; i < Y_range; i++) {
             z.line([0, i * 10], [X_range * 10, i * 10]).stroke('#e2e8f0', 1);
         }
-        const a = z.node('Start', { at: [100, 220], subtitle: 'drag me', size: [160, 72] }).dragWithin();
-        const b = z.node('Process', { at: [420, 220], subtitle: 'drag me', size: [180, 72] }).dragWithin();
-        const c = z.node('Done', { at: [770, 220], subtitle: 'drag me', size: [150, 72] }).dragWithin();
-        const d = z.node('Other One', { at: [100, 420], subtitle: 'drag me', size: [150, 72] }).dragWithin();
+        const a = z.node('Start', { at: ['10%', '32%'], subtitle: 'drag me', size: ['16%', '11%'] }).dragWithin();
+        const b = z.node('Process', { at: ['42%', '32%'], subtitle: 'drag me', size: ['18%', '11%'] }).dragWithin();
+        const c = z.node('Done', { at: ['77%', '32%'], subtitle: 'drag me', size: ['15%', '11%'] }).dragWithin();
+        const d = z.node('Other One', { at: ['10%', '62%'], subtitle: 'drag me', size: ['15%', '11%'] }).dragWithin();
 
         z.edge(a, b, {
             route: 'step',

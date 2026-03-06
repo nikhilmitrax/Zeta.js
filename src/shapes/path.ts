@@ -67,6 +67,7 @@ export class Path extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
+        this._settleForMeasurement();
         const segs = this._segments.get();
         const points: Vec2[] = [];
         for (const seg of segs) {

@@ -1,7 +1,7 @@
 import type { Group, RendererType } from '../src/index';
 import { caption, createCanvas, mountRendererDemo, title } from './demo-kit';
 
-const WIDTH = 1660;
+const WIDTH = 1800;
 const HEIGHT = 960;
 
 const CELL_W = 58;
@@ -10,8 +10,13 @@ const CELL_GAP = 5;
 const SERIES_GAP = 24;
 const TRACK_OFFSET_X = 3 * (CELL_W + CELL_GAP);
 
-const BOARD_X = 78;
-const BOARD_Y = 170;
+const SCENE_TOP = 92;
+const SCENE_BOTTOM = 92;
+const SCENE_SIDE_MARGIN = 16;
+const TITLE_PANEL_HEIGHT = 74;
+const BOARD_PAD_X = 30;
+const BOARD_PAD_TOP = 18;
+const BOARD_PAD_BOTTOM = 26;
 
 const MAIN_ROWS = 7;
 const MAIN_COLS = 18;
@@ -19,9 +24,9 @@ const SERIES_COLS = 15;
 const MAIN_HEIGHT = MAIN_ROWS * CELL_H + (MAIN_ROWS - 1) * CELL_GAP;
 const MAIN_WIDTH = MAIN_COLS * CELL_W + (MAIN_COLS - 1) * CELL_GAP;
 
-const LEGEND_GAP = 32;
-const LEGEND_WIDTH = 318;
-const LEGEND_RIGHT_PAD = 56;
+const LEGEND_GAP = 18;
+const LEGEND_WIDTH = 268;
+const LEGEND_HEIGHT = 266;
 
 type ElementCategory =
     | 'alkaliMetal'
@@ -61,6 +66,8 @@ const MUTE_TEXT = '#27435f';
 const PERIOD_TEXT = '#d3e6ff';
 const GROUP_TEXT = '#b9cbe2';
 const TITLE_TEXT = '#e7f3ff';
+const MAIN_TITLE = 'Periodic Table of Elements';
+const MAIN_TITLE_FONT_SIZE = 52;
 
 const GROUP_LABELS = [
     'IA',
@@ -279,41 +286,61 @@ function createElementTile(host: Group, spec: ElementSpec): Group {
     const synthetic = isSyntheticElement(spec);
     const symbolColor = synthetic ? SYNTHETIC_SYMBOL : BODY_TEXT;
 
-    tile.rect([0, 0], [CELL_W, CELL_H])
-        .radius(7)
-        .fill(CATEGORY_FILL[spec.category])
-        .stroke(TILE_STROKE, 1.1);
+    tile.batch(() => {
+        tile.rect([0, 0], [CELL_W, CELL_H])
+            .radius(7)
+            .fill(CATEGORY_FILL[spec.category])
+            .stroke(TILE_STROKE, 1.1);
 
-    tile.text(spec.number, [6, 5])
-        .fontSize(8.5)
-        .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace")
-        .textBaseline('top')
-        .fill(MUTE_TEXT);
-
-    if (spec.mass.trim()) {
-        tile.text(spec.mass, [CELL_W - 6, 5])
-            .fontSize(8)
+        tile.text(spec.number, [6, 5])
+            .fontSize(8.5)
             .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace")
-            .textAlign('right')
             .textBaseline('top')
             .fill(MUTE_TEXT);
-    }
 
-    tile.text(spec.symbol, [CELL_W / 2, CELL_H * 0.54])
-        .fontSize(symbolSize(spec))
-        .fontFamily("'Sora', 'Avenir Next', 'Inter', sans-serif")
-        .textAlign('center')
-        .textBaseline('middle')
-        .fill(symbolColor);
+        if (spec.mass.trim()) {
+            tile.text(spec.mass, [CELL_W - 6, 5])
+                .fontSize(8)
+                .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace")
+                .textAlign('right')
+                .textBaseline('top')
+                .fill(MUTE_TEXT);
+        }
 
-    tile.text(spec.name, [CELL_W / 2, CELL_H - 6])
-        .fontSize(7.6)
-        .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
-        .textAlign('center')
-        .textBaseline('bottom')
-        .fill(BODY_TEXT);
+        tile.text(spec.symbol, [CELL_W / 2, CELL_H * 0.54])
+            .fontSize(symbolSize(spec))
+            .fontFamily("'Sora', 'Avenir Next', 'Inter', sans-serif")
+            .textAlign('center')
+            .textBaseline('middle')
+            .fill(symbolColor);
+
+        tile.text(spec.name, [CELL_W / 2, CELL_H - 6])
+            .fontSize(7.6)
+            .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
+            .textAlign('center')
+            .textBaseline('bottom')
+            .fill(BODY_TEXT);
+    });
 
     return tile;
+}
+
+function createLegendItem(host: Group, label: string, category: ElementCategory): Group {
+    const row = host.row({ gap: 8, align: 'center' });
+
+    row.batch(() => {
+        row.rect([0, 0], [15, 15])
+            .radius(3)
+            .fill(CATEGORY_FILL[category])
+            .stroke(TILE_STROKE, 1);
+
+        row.text(label)
+            .fontSize(10.6)
+            .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
+            .fill('#d8e8fa');
+    });
+
+    return row;
 }
 
 function firstOccupiedPeriod(group: number): number | null {
@@ -330,200 +357,226 @@ function createDemo(renderer: RendererType) {
         background: '#0a1122',
     });
 
-    title(
-        z,
-        'Periodic Table (CeTZ -> Zeta)',
-        'Structured element data + row/column marker tracks + anchor-based placement (minimal hardcoded coordinates).',
-    );
+    z.batch(() => {
+        title(
+            z,
+            'Periodic Table (CeTZ -> Zeta)',
+            'Structured element data + row/column marker tracks + anchor-based placement (minimal hardcoded coordinates).',
+        );
 
-    z.text('Periodic Table of Elements', [BOARD_X + MAIN_WIDTH / 2, 126])
-        .fontSize(52)
-        .fontFamily("'Sora', 'Avenir Next', 'Inter', sans-serif")
-        .textAlign('center')
-        .textBaseline('middle')
-        .fill(TITLE_TEXT);
+        const scene = z.column({ gap: 18, align: 'center' });
 
-    const board = z.group().at([BOARD_X, BOARD_Y]);
+        const titlePanel = scene.group().size([0, TITLE_PANEL_HEIGHT]);
+        const mainTitle = titlePanel.text(MAIN_TITLE, [0, MAIN_TITLE_FONT_SIZE * 1.2])
+            .fontSize(MAIN_TITLE_FONT_SIZE)
+            .fontFamily("'Sora', 'Avenir Next', 'Inter', sans-serif")
+            .fill(TITLE_TEXT);
 
-    const boardPanelWidth = WIDTH - (BOARD_X - 26) - 24;
-    const boardPanelHeight = HEIGHT - (BOARD_Y - 34) - 24;
+        const board = scene.group();
+        const boardFrame = board.rect([0, 0], [0, 0])
+            .radius(20)
+            .fill('rgba(8, 19, 34, 0.72)')
+            .stroke('rgba(133, 170, 205, 0.25)', 1.2);
 
-    board.rect([-26, -34], [boardPanelWidth, boardPanelHeight])
-        .radius(20)
-        .fill('rgba(8, 19, 34, 0.72)')
-        .stroke('rgba(133, 170, 205, 0.25)', 1.2);
+        const content = board.group();
+        const main = content.group();
 
-    const mainTrack = board.column({ gap: CELL_GAP, align: 'left' }).at([0, 0]);
-    const mainMarkers: Group[][] = [];
-    for (let period = 0; period < MAIN_ROWS; period++) {
-        mainMarkers.push(createTrackRow(mainTrack, MAIN_COLS));
-    }
-
-    const seriesTrack = board.column({ gap: CELL_GAP, align: 'left' }).at([
-        TRACK_OFFSET_X,
-        MAIN_HEIGHT + SERIES_GAP,
-    ]);
-    const lanthanideMarkers = createTrackRow(seriesTrack, SERIES_COLS);
-    const actinideMarkers = createTrackRow(seriesTrack, SERIES_COLS);
-
-    const placedMain = new Map<string, Group>();
-    for (let period = 0; period < MAIN_TABLE.length; period++) {
-        for (let group = 0; group < MAIN_TABLE[period].length; group++) {
-            const spec = MAIN_TABLE[period][group];
-            if (!spec) continue;
-            const tile = createElementTile(board, spec).follow(mainMarkers[period][group], 'topLeft');
-            placedMain.set(`${period + 1}-${group + 1}`, tile);
+        const mainTrack = main.column({ gap: CELL_GAP, align: 'left' }).at([0, 0]);
+        const mainMarkers: Group[][] = [];
+        for (let period = 0; period < MAIN_ROWS; period++) {
+            mainMarkers.push(createTrackRow(mainTrack, MAIN_COLS));
         }
-    }
 
-    const lanthanideTiles: Group[] = [];
-    for (let idx = 0; idx < LANTHANIDES.length; idx++) {
-        lanthanideTiles.push(
-            createElementTile(board, LANTHANIDES[idx]).follow(lanthanideMarkers[idx], 'topLeft'),
-        );
-    }
+        const seriesTrack = main.column({ gap: CELL_GAP, align: 'left' }).at([
+            TRACK_OFFSET_X,
+            MAIN_HEIGHT + SERIES_GAP,
+        ]);
+        const lanthanideMarkers = createTrackRow(seriesTrack, SERIES_COLS);
+        const actinideMarkers = createTrackRow(seriesTrack, SERIES_COLS);
 
-    const actinideTiles: Group[] = [];
-    for (let idx = 0; idx < ACTINIDES.length; idx++) {
-        actinideTiles.push(
-            createElementTile(board, ACTINIDES[idx]).follow(actinideMarkers[idx], 'topLeft'),
-        );
-    }
+        const placedMain = new Map<string, Group>();
+        for (let period = 0; period < MAIN_TABLE.length; period++) {
+            for (let group = 0; group < MAIN_TABLE[period].length; group++) {
+                const spec = MAIN_TABLE[period][group];
+                if (!spec) continue;
+                const tile = createElementTile(main, spec).follow(mainMarkers[period][group], 'topLeft');
+                placedMain.set(`${period + 1}-${group + 1}`, tile);
+            }
+        }
 
-    const lanthanideBridge = placedMain.get('6-3');
-    const actinideBridge = placedMain.get('7-3');
-    if (lanthanideBridge) {
-        board.edge(lanthanideBridge, lanthanideTiles[0], {
-            from: 'bottom',
-            to: 'top',
-            route: 'straight',
-            color: '#8ea3be',
-            width: 1.3,
-            dash: [3, 4],
-        });
-    }
-    if (actinideBridge) {
-        board.edge(actinideBridge, actinideTiles[0], {
-            from: 'bottom',
-            to: 'top',
-            route: 'straight',
-            color: '#8ea3be',
-            width: 1.3,
-            dash: [3, 4],
-        });
-    }
+        const lanthanideTiles: Group[] = [];
+        for (let idx = 0; idx < LANTHANIDES.length; idx++) {
+            lanthanideTiles.push(
+                createElementTile(main, LANTHANIDES[idx]).follow(lanthanideMarkers[idx], 'topLeft'),
+            );
+        }
 
-    board.text('Lanthanides', [0, 0])
-        .follow(lanthanideMarkers[0], 'left', { offset: [-28, -2] })
-        .fontSize(12)
-        .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
-        .textAlign('right')
-        .textBaseline('middle')
-        .fill(PERIOD_TEXT);
+        const actinideTiles: Group[] = [];
+        for (let idx = 0; idx < ACTINIDES.length; idx++) {
+            actinideTiles.push(
+                createElementTile(main, ACTINIDES[idx]).follow(actinideMarkers[idx], 'topLeft'),
+            );
+        }
 
-    board.text('Actinides', [0, 0])
-        .follow(actinideMarkers[0], 'left', { offset: [-28, -2] })
-        .fontSize(12)
-        .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
-        .textAlign('right')
-        .textBaseline('middle')
-        .fill(PERIOD_TEXT);
+        const lanthanideBridge = placedMain.get('6-3');
+        const actinideBridge = placedMain.get('7-3');
+        if (lanthanideBridge) {
+            main.edge(lanthanideBridge, lanthanideTiles[0], {
+                from: 'bottom',
+                to: 'top',
+                route: 'straight',
+                color: '#8ea3be',
+                width: 1.3,
+                dash: [3, 4],
+            });
+        }
+        if (actinideBridge) {
+            main.edge(actinideBridge, actinideTiles[0], {
+                from: 'bottom',
+                to: 'top',
+                route: 'straight',
+                color: '#8ea3be',
+                width: 1.3,
+                dash: [3, 4],
+            });
+        }
 
-    for (let period = 0; period < MAIN_ROWS; period++) {
-        board.text(String(period + 1), [0, 0])
-            .follow(mainMarkers[period][0], 'left', { offset: [-22, 0] })
-            .fontSize(15)
-            .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace")
-            .textAlign('center')
+        main.text('Lanthanides', [0, 0])
+            .follow(lanthanideMarkers[0], 'left', { offset: [-28, -2] })
+            .fontSize(12)
+            .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
+            .textAlign('right')
             .textBaseline('middle')
             .fill(PERIOD_TEXT);
-    }
 
-    for (let group = 0; group < MAIN_COLS; group++) {
-        const period = firstOccupiedPeriod(group);
-        if (period === null) continue;
-
-        board.text(`${group + 1} ${GROUP_LABELS[group]}`, [0, 0])
-            .follow(mainMarkers[period][group], 'top', { offset: [0, -10] })
-            .fontSize(9)
+        main.text('Actinides', [0, 0])
+            .follow(actinideMarkers[0], 'left', { offset: [-28, -2] })
+            .fontSize(12)
             .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
-            .textAlign('center')
-            .textBaseline('bottom')
-            .fill(GROUP_TEXT);
-    }
-
-    const legend = board.group().follow(mainMarkers[4][17], 'right', { gap: LEGEND_GAP, align: 'start' });
-
-    legend.rect([0, 0], [LEGEND_WIDTH, 266])
-        .radius(12)
-        .fill('rgba(11, 24, 40, 0.8)')
-        .stroke('rgba(121, 160, 194, 0.28)', 1);
-
-    legend.text('Legend', [14, 24])
-        .fontSize(15)
-        .fontFamily("'Sora', 'Avenir Next', 'Inter', sans-serif")
-        .fill('#def2ff');
-
-    const legendItems: Array<[string, ElementCategory]> = [
-        ['Alkali Metal', 'alkaliMetal'],
-        ['Alkaline Earth Metal', 'alkalineEarth'],
-        ['Transition / Post-Transition', 'metal'],
-        ['Metalloid', 'metalloid'],
-        ['Nonmetal', 'nonmetal'],
-        ['Halogen', 'halogen'],
-        ['Noble Gas', 'nobleGas'],
-        ['Lanthanide / Actinide', 'lanthanideActinide'],
-    ];
-
-    for (let idx = 0; idx < legendItems.length; idx++) {
-        const [label, category] = legendItems[idx];
-        const y = 48 + idx * 25;
-        legend.rect([14, y], [17, 17])
-            .radius(3)
-            .fill(CATEGORY_FILL[category])
-            .stroke(TILE_STROKE, 1);
-
-        legend.text(label, [39, y + 8.5])
-            .fontSize(11.4)
-            .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
+            .textAlign('right')
             .textBaseline('middle')
+            .fill(PERIOD_TEXT);
+
+        for (let period = 0; period < MAIN_ROWS; period++) {
+            main.text(String(period + 1), [0, 0])
+                .follow(mainMarkers[period][0], 'left', { offset: [-22, 0] })
+                .fontSize(15)
+                .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace")
+                .textAlign('center')
+                .textBaseline('middle')
+                .fill(PERIOD_TEXT);
+        }
+
+        for (let group = 0; group < MAIN_COLS; group++) {
+            const period = firstOccupiedPeriod(group);
+            if (period === null) continue;
+
+            main.text(`${group + 1} ${GROUP_LABELS[group]}`, [0, 0])
+                .follow(mainMarkers[period][group], 'top', { offset: [0, -10] })
+                .fontSize(9)
+                .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
+                .textAlign('center')
+                .textBaseline('bottom')
+                .fill(GROUP_TEXT);
+        }
+
+        const sidebar = content.column({ gap: 22, align: 'left' });
+
+        const legend = sidebar.container({
+            size: [LEGEND_WIDTH, LEGEND_HEIGHT],
+            padding: [14, 14],
+            radius: 12,
+            fill: 'rgba(11, 24, 40, 0.8)',
+            stroke: 'rgba(121, 160, 194, 0.28)',
+            strokeWidth: 1,
+            title: 'Legend',
+            titleColor: '#def2ff',
+            titleFontSize: 15,
+            titleFontFamily: "'Sora', 'Avenir Next', 'Inter', sans-serif",
+            contentOffset: [14, 48],
+        });
+        const legendItemsHost = legend.content.column({ gap: 8, align: 'left' });
+
+        const legendItems: Array<[string, ElementCategory]> = [
+            ['Alkali Metal', 'alkaliMetal'],
+            ['Alkaline Earth Metal', 'alkalineEarth'],
+            ['Transition / Post-Transition', 'metal'],
+            ['Metalloid', 'metalloid'],
+            ['Nonmetal', 'nonmetal'],
+            ['Halogen', 'halogen'],
+            ['Noble Gas', 'nobleGas'],
+            ['Lanthanide / Actinide', 'lanthanideActinide'],
+        ];
+
+        for (let idx = 0; idx < legendItems.length; idx++) {
+            const [label, category] = legendItems[idx];
+            createLegendItem(legendItemsHost, label, category);
+        }
+
+        const key = sidebar.column({ gap: 10, align: 'left' });
+        createElementTile(
+            key,
+            E('Z', 'mass', 'Symbol', 'Name', 'metal', { symbolSize: 13 }),
+        );
+        const keyNotes = key.column({ gap: 8, align: 'left' });
+
+        keyNotes.text('black: natural')
+            .fontSize(11.5)
+            .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
             .fill('#d8e8fa');
-    }
 
-    const keyTile = createElementTile(
-        board,
-        E('Z', 'mass', 'Symbol', 'Name', 'metal', { symbolSize: 13 }),
-    ).follow(legend, 'below', { gap: 22, align: 'start' });
+        keyNotes.text('gray: synthetic')
+            .fontSize(11.5)
+            .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
+            .fill(SYNTHETIC_SYMBOL);
 
-    board.text('black symbol: naturally occurring', [0, 0])
-        .follow(keyTile, 'right', { offset: [16, 20] })
-        .fontSize(12)
-        .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
-        .textBaseline('middle')
-        .fill('#d8e8fa');
+        sidebar.follow(main, 'right', { gap: LEGEND_GAP, align: 'center' });
 
-    board.text('gray symbol: synthetic', [0, 0])
-        .follow(keyTile, 'right', { offset: [16, 38] })
-        .fontSize(12)
-        .fontFamily("'IBM Plex Sans', 'Inter', sans-serif")
-        .textBaseline('middle')
-        .fill(SYNTHETIC_SYMBOL);
+        // Let the engine compute the raw local dimensions of the whole content block.
+        // It's safe to do this now because our constraints queue correctly, but
+        // alignTarget means we don't *need* manual math to center the container!
+        const cBox = content.computeLocalBBox();
+        const mainTrackBox = mainTrack.computeLocalBBox();
 
-    caption(
-        z,
-        'Converted from CeTZ gallery/periodic-table.typ using reusable tile and sparse-grid marker helpers.',
-        [40, HEIGHT - 16],
-        '#8ea2bf',
-    );
-    caption(
-        z,
-        `Renderer: ${renderer === 'canvas2d' ? 'Canvas2D' : 'SVG'}`,
-        [WIDTH - 180, HEIGHT - 16],
-        '#7486a4',
-    );
+        const boardWidth = cBox.width + BOARD_PAD_X * 2;
+        const boardHeight = cBox.height + BOARD_PAD_TOP + BOARD_PAD_BOTTOM;
+
+        boardFrame.pos(0, 0).size([boardWidth, boardHeight]);
+        titlePanel.size([boardWidth, TITLE_PANEL_HEIGHT]);
+
+        mainTitle.alignTarget(titlePanel, 'center', 'center');
+
+        // We align the boardFrame center to the scene's box.
+        // Then we align the content inside the boardFrame.
+        // The negative minX offset of the content is automatically handled by Zeta's
+        // anchor system, so the visual center of the block is perfectly true.
+        content.alignTarget(boardFrame, 'center', 'center', { offset: [0, (BOARD_PAD_TOP - BOARD_PAD_BOTTOM) / 2] });
+
+        // Finally, position the entire scene right in the middle of our canvas visually
+        // but push it to the right slightly to account for the heavy legend unbalancing it.
+        // We shift the entire scene right by 154 units to perfectly center the main block
+        // (ignoring the width of the uneven legend on the right edge).
+        scene.alignTarget(scene.parent!, 'top', 'top', { offset: [154, SCENE_TOP] });
+        scene.alignTarget(scene.parent!, 'center', 'center', { offset: [154, (SCENE_TOP - SCENE_BOTTOM) / 2] });
+
+        caption(
+            z,
+            'Converted from CeTZ gallery/periodic-table.typ using reusable tile and sparse-grid helper.',
+            [40, HEIGHT - 16],
+            '#8ea2bf',
+        );
+        caption(
+            z,
+            `Renderer: ${renderer === 'canvas2d' ? 'Canvas2D' : 'SVG'}`,
+            [WIDTH - 180, HEIGHT - 16],
+            '#7486a4',
+        );
+
+    });
 
     z.flush();
     return { canvas: z };
 }
 
 mountRendererDemo(createDemo);
+

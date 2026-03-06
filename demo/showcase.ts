@@ -1,26 +1,14 @@
 import type { RendererType } from '../src/canvas';
-import { caption, createCanvas, mountRendererDemo, title } from './demo-kit';
+import { caption, createCanvas, mountRendererDemo, rel, title } from './demo-kit';
 
-const PANEL_FLOW: [number, number] = [600, 280];
-const PANEL_LAYOUT: [number, number] = [480, 280];
-const PANEL_CONTEXT: [number, number] = [1000, 300];
-const PANEL_GAP = 0;
-const OUTER_MARGIN_X = 30;
-const TOP_OFFSET = 90;
-const BOTTOM_MARGIN = 30;
+const CANVAS: [number, number] = [1060, 720];
 
-function computeCanvasSize(): [number, number] {
-    const topRowWidth = PANEL_FLOW[0] + PANEL_GAP + PANEL_LAYOUT[0];
-    const contentWidth = Math.max(topRowWidth, PANEL_CONTEXT[0]);
-    const contentHeight = PANEL_FLOW[1] + PANEL_GAP + PANEL_CONTEXT[1];
-    return [
-        OUTER_MARGIN_X * 2 + contentWidth,
-        TOP_OFFSET + contentHeight + BOTTOM_MARGIN,
-    ];
-}
-
-function codeLabel(target: { text(content: string, pos: [number, number]): any }, text: string, at: [number, number], color: string) {
-    target.text(text, at)
+function codeLabel(
+    target: { text(content: string, pos: [number, number]): any },
+    text: string,
+    color: string,
+) {
+    return target.text(text, [0, 0])
         .fill(color)
         .fontSize(11)
         .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace");
@@ -51,19 +39,16 @@ function drawIsoWireBox(
         iso.line(from, to).stroke(color, width);
     };
 
-    // Bottom face
     edge(p000, p100, colors.faint, 1.1);
     edge(p100, p110, colors.faint, 1.1);
     edge(p110, p010, colors.faint, 1.1);
     edge(p010, p000, colors.faint, 1.1);
 
-    // Vertical edges
     edge(p000, p001, colors.main, 1.3);
     edge(p100, p101, colors.main, 1.3);
     edge(p010, p011, colors.main, 1.3);
     edge(p110, p111, colors.main, 1.3);
 
-    // Top face
     edge(p001, p101, colors.main, 2);
     edge(p101, p111, colors.main, 2);
     edge(p111, p011, colors.main, 2);
@@ -80,7 +65,7 @@ function drawIsoWireBox(
 }
 
 function createDemo(renderer: RendererType) {
-    const [canvasWidth, canvasHeight] = computeCanvasSize();
+    const [canvasWidth, canvasHeight] = CANVAS;
     const figure = document.getElementById('figure');
     if (figure) {
         figure.style.width = `${canvasWidth}px`;
@@ -94,49 +79,58 @@ function createDemo(renderer: RendererType) {
 
     title(
         z,
-        'Zeta.js Simplicity Showcase',
-        'Intent-level drawing: nodes, edges, layout macros, plotting contexts, and projection.',
+        'Zeta.js Ergonomics Showcase',
+        'Relative units, layout containers, anchors, and context switches keep the same scene declarative.',
     );
 
-    const flowPanel = z.container({
-        size: PANEL_FLOW,
+    const board = z.group()
+        .at([rel(30, canvasWidth), rel(92, canvasHeight)])
+        .size([rel(996, canvasWidth), rel(570, canvasHeight)]);
+
+    const panelStack = board.column({ gap: '4%', align: 'left' })
+        .size(['100%', '100%']);
+    const topPanels = panelStack.row({ gap: '2%', align: 'top' })
+        .size(['100%', '40%']);
+
+    const flowPanel = topPanels.container({
+        size: ['58%', '100%'],
         title: '1) Diagram by Intent',
     });
-    const layoutPanel = z.container({
-        size: PANEL_LAYOUT,
+    const layoutPanel = topPanels.container({
+        size: ['40%', '100%'],
         title: '2) Layout Macros',
     });
-    const ctxPanel = z.container({
-        size: PANEL_CONTEXT,
+    const ctxPanel = panelStack.container({
+        size: ['100%', '48%'],
         title: '3) Contexts (coords + isometric)',
     });
-    const topPanels = z.row([flowPanel, layoutPanel], { gap: PANEL_GAP, align: 'top' });
-    z.column([topPanels, ctxPanel], { gap: PANEL_GAP, align: 'left' }).at([OUTER_MARGIN_X, TOP_OFFSET]);
 
     const flow = flowPanel.content;
-    const ingest = flow.node('Ingest', {
-        at: [18, 22],
+    const pipelineHost = flow.group()
+        .at(['4%', '8%'])
+        .size(['92%', '36%']);
+    const pipeline = pipelineHost.row({ gap: '5%', align: 'top' })
+        .size(['100%', '100%']);
+
+    const ingest = pipeline.node('Ingest', {
         subtitle: 'CSV / API',
-        size: [132, 74],
+        size: ['23%', '100%'],
         ports: [{ name: 'out', side: 'right' }],
     });
-    const normalize = flow.node('Normalize', {
-        at: [176, 22],
+    const normalize = pipeline.node('Normalize', {
         subtitle: 'schema + units',
-        size: [148, 74],
+        size: ['27%', '100%'],
         ports: [{ name: 'in', side: 'left' }, { name: 'out', side: 'right' }],
     });
-    const serve = flow.node('Serve', {
-        at: [340, 22],
+    const serve = pipeline.node('Serve', {
         subtitle: 'dashboard',
-        size: [120, 74],
+        size: ['21%', '100%'],
         ports: [{ name: 'in', side: 'left' }],
     });
     const monitor = flow.node('Monitor', {
-        at: [190, 156],
-        size: [120, 62],
         subtitle: 'alerts',
-    });
+        size: ['22%', '24%'],
+    }).follow(normalize, 'below', { gap: '12%', align: 'center' });
 
     flow.edge(ingest, normalize, {
         from: 'right',
@@ -161,14 +155,22 @@ function createDemo(renderer: RendererType) {
         dash: [6, 4],
     });
 
-    codeLabel(flow, "z.node('Ingest')", [18, 146], '#c4b5fd');
-    codeLabel(flow, 'z.edge(a, b, { route: ... })', [18, 172], '#7dd3fc');
+    const flowNotes = flow.column({ gap: '22%', align: 'left' })
+        .at(['4%', '84%'])
+        .size(['72%', '12%']);
+    codeLabel(flowNotes, 'pipeline.row().node(...)', '#c4b5fd');
+    codeLabel(flowNotes, "monitor.follow(normalize, 'below')", '#7dd3fc');
 
     const layout = layoutPanel.content;
-    const todo = layout.node('Todo', { size: [112, 58] });
-    const doing = layout.node('Doing', { size: [112, 58] });
-    const done = layout.node('Done', { size: [112, 58] });
-    const swimlane = layout.row([todo, doing, done], { gap: 22, align: 'center' }).at([18, 36]);
+    const swimlaneHost = layout.group()
+        .at(['4%', '10%'])
+        .size(['92%', '24%']);
+    const swimlane = swimlaneHost.row({ gap: '6%', align: 'center' })
+        .size(['100%', '100%']);
+
+    const todo = swimlane.node('Todo', { size: ['28%', '100%'] });
+    const doing = swimlane.node('Doing', { size: ['28%', '100%'] });
+    const done = swimlane.node('Done', { size: ['28%', '100%'] });
 
     layout.edge(todo, doing, {
         from: 'right',
@@ -185,29 +187,43 @@ function createDemo(renderer: RendererType) {
         color: '#93c5fd',
     });
 
-    const notes = [
-        layout.node('Spec', { size: [92, 46] }),
-        layout.node('Code', { size: [92, 46] }),
-        layout.node('Ship', { size: [92, 46] }),
-    ];
-    const stack = layout.stack(notes, { align: 'topLeft', offset: [10, 10] }).at([18, 132]);
+    codeLabel(layout, "z.row([...], { gap: '6%' })", '#86efac')
+        .follow(swimlaneHost, 'below', { gap: 12, align: 'start' });
 
-    codeLabel(layout, 'z.row([...], { gap })', [18, 118], '#86efac');
-    codeLabel(layout, 'z.stack([...], { offset })', [18, 222], '#f9a8d4');
+    const stackHost = layout.group()
+        .at(['4%', '58%'])
+        .size(['44%', '26%']);
+    const cardStack = stackHost.stack({ align: 'topLeft', offset: ['10%', '18%'] })
+        .size(['100%', '100%']);
+
+    cardStack.node('Spec', { size: ['82%', '56%'] });
+    cardStack.node('Code', { size: ['82%', '56%'] });
+    cardStack.node('Ship', { size: ['82%', '56%'] });
+
+    codeLabel(layout, "z.stack([...], { offset: ['10%', '18%'] })", '#f9a8d4')
+        .follow(stackHost, 'below', { gap: 10, align: 'start' });
 
     const ctx = ctxPanel.content;
-    const plot = ctx.group()
-        .at([16, 22])
-        .size([410, 208])
-        .coords({
-            x: { domain: [0, Math.PI * 2] },
-            y: { domain: [-1.3, 1.3] },
-        });
+    const contexts = ctx.row({ gap: '4%', align: 'top' })
+        .at(['2%', '6%'])
+        .size(['96%', '78%']);
+    const plotHost = contexts.group().size(['42%', '100%']);
+    const isoHost = contexts.group().size(['54%', '100%']);
+
+    const plot = plotHost.group()
+        .at(['14%', '2%'])
+        .size(['82%', '74%']);
+    plot.coords({
+        x: { domain: [0, Math.PI * 2] },
+        y: { domain: [-1.3, 1.3] },
+    });
     plot.axes({ grid: true, xLabel: 'x', yLabel: 'f(x)', tickCount: 5, fontSize: 10 });
     plot.func((x) => Math.sin(x), { samples: 120 }).stroke('#38bdf8', 2);
     plot.func((x) => Math.cos(x), { samples: 120 }).stroke('#f472b6', 2).dashed([6, 4]);
 
-    const iso = ctx.group().at([600, 122]).project('isometric', { angle: 30, scale: 18 });
+    const iso = isoHost.group()
+        .at(['34%', '70%'])
+        .project('isometric', { angle: 30, scale: 18 });
     for (let i = 0; i <= 7; i++) {
         iso.line([i, 0, 0], [i, 6, 0]).stroke('rgba(148,163,184,0.35)', 1);
         iso.line([0, i, 0], [7, i, 0]).stroke('rgba(148,163,184,0.35)', 1);
@@ -228,17 +244,17 @@ function createDemo(renderer: RendererType) {
     );
     iso.line(a, b).stroke('#fbbf24', 1.8).dashed([6, 4]);
 
-    codeLabel(ctx, 'plot.axes(); plot.func(...)', [20, 236], '#7dd3fc');
-    codeLabel(ctx, "group.project('isometric')", [492, 236], '#fbbf24');
+    codeLabel(ctx, 'plot.axes(); plot.func(...)', '#7dd3fc')
+        .follow(plotHost, 'below', { gap: 10, align: 'start' });
+    codeLabel(ctx, "group.project('isometric')", '#fbbf24')
+        .follow(isoHost, 'below', { gap: 10, align: 'start' });
+
     caption(
         z,
         `Renderer: ${renderer === 'canvas2d' ? 'Canvas2D' : 'SVG'}`,
         [canvasWidth - 150, canvasHeight - 22],
         '#6b7898',
     );
-
-    void swimlane;
-    void stack;
 
     z.flush();
     return { canvas: z };

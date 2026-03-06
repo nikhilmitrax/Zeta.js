@@ -1,5 +1,5 @@
 import type { RendererType } from '../src/canvas';
-import { caption, createCanvas, mountRendererDemo, title } from './demo-kit';
+import { caption, createCanvas, mountRendererDemo, rel, title } from './demo-kit';
 
 const WIDTH = 980;
 const HEIGHT = 640;
@@ -59,8 +59,8 @@ function createDemo(renderer: RendererType) {
         const y = startY + i * rowGap;
 
         const from = z.node('FROM', {
-            at: [78, y - 30],
-            size: [110, 60],
+            at: [rel(78, WIDTH), rel(y - 30, HEIGHT)],
+            size: [rel(110, WIDTH), rel(60, HEIGHT)],
             fill: 'rgba(99,102,241,0.14)',
             stroke: '#818cf8',
             textColor: '#ddd6fe',
@@ -68,8 +68,8 @@ function createDemo(renderer: RendererType) {
         });
 
         const to = z.node('TO', {
-            at: [792, y - 30],
-            size: [110, 60],
+            at: [rel(792, WIDTH), rel(y - 30, HEIGHT)],
+            size: [rel(110, WIDTH), rel(60, HEIGHT)],
             fill: 'rgba(56,189,248,0.14)',
             stroke: '#38bdf8',
             textColor: '#bae6fd',

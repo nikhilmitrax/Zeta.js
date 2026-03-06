@@ -4,6 +4,7 @@ import Z, {
     type SceneNode,
     type ZCanvas,
 } from '../src/index';
+import { rel } from './demo-kit';
 import { mountDemoShell } from './demo-shell';
 
 type DemoRuntime = {
@@ -31,6 +32,12 @@ type TextHost = {
 };
 
 const DEFAULT_BG = '#090f22';
+const CONSTRAINTS_CANVAS: [number, number] = [520, 300];
+const LAYOUT_CANVAS: [number, number] = [520, 320];
+const LAYOUT_CONTENT: [number, number] = [460, 231];
+const CONTEXTS_CANVAS: [number, number] = [520, 300];
+const ANIMATION_CANVAS: [number, number] = [520, 260];
+const DEBUG_CANVAS: [number, number] = [520, 290];
 
 function monoLabel(host: TextHost, content: string, pos: [number, number], color = '#94a3b8'): void {
     host.text(content, pos)
@@ -282,8 +289,8 @@ function buildConstraintsDemo(z: ZCanvas): DemoRuntime {
     const bounds: [number, number, number, number] = [18, 26, 502, 286];
 
     const leader = z.node('Leader', {
-        at: [200, 108],
-        size: [128, 72],
+        at: [rel(200, CONSTRAINTS_CANVAS[0]), rel(108, CONSTRAINTS_CANVAS[1])],
+        size: [rel(128, CONSTRAINTS_CANVAS[0]), rel(72, CONSTRAINTS_CANVAS[1])],
         subtitle: 'drag me',
         fill: 'rgba(99,102,241,0.18)',
         stroke: '#818cf8',
@@ -292,21 +299,21 @@ function buildConstraintsDemo(z: ZCanvas): DemoRuntime {
     }).dragWithin(bounds);
 
     const left = z.node('Left', {
-        size: [104, 58],
+        size: [rel(104, CONSTRAINTS_CANVAS[0]), rel(58, CONSTRAINTS_CANVAS[1])],
         fill: 'rgba(251,191,36,0.16)',
         stroke: '#fbbf24',
         textColor: '#fde68a',
     }).follow(leader, 'left', { gap: 44, align: 'center' });
 
     const right = z.node('Right', {
-        size: [104, 58],
+        size: [rel(104, CONSTRAINTS_CANVAS[0]), rel(58, CONSTRAINTS_CANVAS[1])],
         fill: 'rgba(56,189,248,0.16)',
         stroke: '#38bdf8',
         textColor: '#bae6fd',
     }).follow(leader, 'right', { gap: 44, align: 'center' });
 
     const below = z.node('Below', {
-        size: [108, 60],
+        size: [rel(108, CONSTRAINTS_CANVAS[0]), rel(60, CONSTRAINTS_CANVAS[1])],
         fill: 'rgba(16,185,129,0.16)',
         stroke: '#34d399',
         textColor: '#a7f3d0',
@@ -379,8 +386,8 @@ function buildConstraintsDemo(z: ZCanvas): DemoRuntime {
 
 function buildLayoutDemo(z: ZCanvas): void {
     const panel = z.container({
-        at: [14, 16],
-        size: [492, 286],
+        at: [rel(14, LAYOUT_CANVAS[0]), rel(16, LAYOUT_CANVAS[1])],
+        size: [rel(492, LAYOUT_CANVAS[0]), rel(286, LAYOUT_CANVAS[1])],
         title: 'container({ title, size, padding })',
         fill: 'rgba(15,23,42,0.64)',
         stroke: 'rgba(148,163,184,0.35)',
@@ -391,28 +398,29 @@ function buildLayoutDemo(z: ZCanvas): void {
     const content = panel.content;
 
     const ingest = content.node('Ingest', {
-        size: [96, 52],
+        size: [rel(96, LAYOUT_CONTENT[0]), rel(52, LAYOUT_CONTENT[1])],
         fill: 'rgba(99,102,241,0.18)',
         stroke: '#818cf8',
         textColor: '#ddd6fe',
         fontSize: 12,
     });
     const transform = content.node('Transform', {
-        size: [112, 52],
+        size: [rel(112, LAYOUT_CONTENT[0]), rel(52, LAYOUT_CONTENT[1])],
         fill: 'rgba(56,189,248,0.18)',
         stroke: '#38bdf8',
         textColor: '#bae6fd',
         fontSize: 12,
     });
     const ship = content.node('Ship', {
-        size: [90, 52],
+        size: [rel(90, LAYOUT_CONTENT[0]), rel(52, LAYOUT_CONTENT[1])],
         fill: 'rgba(16,185,129,0.18)',
         stroke: '#34d399',
         textColor: '#a7f3d0',
         fontSize: 12,
     });
 
-    const flow = content.row([ingest, transform, ship], { gap: 14, align: 'center' }).at([16, 16]);
+    const flow = content.row([ingest, transform, ship], { gap: 14, align: 'center' })
+        .at([rel(16, LAYOUT_CONTENT[0]), rel(16, LAYOUT_CONTENT[1])]);
 
     content.edge(ingest, transform, {
         from: 'right',
@@ -428,29 +436,32 @@ function buildLayoutDemo(z: ZCanvas): void {
     });
 
     const queue = [
-        content.node('Spec', { size: [74, 34], fontSize: 11 }),
-        content.node('Code', { size: [74, 34], fontSize: 11 }),
-        content.node('Review', { size: [74, 34], fontSize: 11 }),
+        content.node('Spec', { size: [rel(74, LAYOUT_CONTENT[0]), rel(34, LAYOUT_CONTENT[1])], fontSize: 11 }),
+        content.node('Code', { size: [rel(74, LAYOUT_CONTENT[0]), rel(34, LAYOUT_CONTENT[1])], fontSize: 11 }),
+        content.node('Review', { size: [rel(74, LAYOUT_CONTENT[0]), rel(34, LAYOUT_CONTENT[1])], fontSize: 11 }),
     ];
-    content.column(queue, { gap: 8, align: 'left' }).at([16, 106]);
+    content.column(queue, { gap: 8, align: 'left' })
+        .at([rel(16, LAYOUT_CONTENT[0]), rel(106, LAYOUT_CONTENT[1])]);
 
     const cards = Array.from({ length: 6 }, (_, idx) => {
         return content.node(`N${idx + 1}`, {
-            size: [58, 34],
+            size: [rel(58, LAYOUT_CONTENT[0]), rel(34, LAYOUT_CONTENT[1])],
             fontSize: 11,
             fill: 'rgba(148,163,184,0.12)',
             stroke: 'rgba(148,163,184,0.5)',
             textColor: '#cbd5e1',
         });
     });
-    content.grid(cards, { columns: 3, gap: [8, 8], alignX: 'center', alignY: 'center' }).at([126, 106]);
+    content.grid(cards, { columns: 3, gap: [8, 8], alignX: 'center', alignY: 'center' })
+        .at([rel(126, LAYOUT_CONTENT[0]), rel(106, LAYOUT_CONTENT[1])]);
 
     const stackCards = [
-        content.node('A', { size: [92, 44], fill: 'rgba(244,114,182,0.18)', stroke: '#f472b6', textColor: '#fbcfe8' }),
-        content.node('B', { size: [92, 44], fill: 'rgba(251,191,36,0.18)', stroke: '#fbbf24', textColor: '#fde68a' }),
-        content.node('C', { size: [92, 44], fill: 'rgba(34,211,238,0.18)', stroke: '#22d3ee', textColor: '#a5f3fc' }),
+        content.node('A', { size: [rel(92, LAYOUT_CONTENT[0]), rel(44, LAYOUT_CONTENT[1])], fill: 'rgba(244,114,182,0.18)', stroke: '#f472b6', textColor: '#fbcfe8' }),
+        content.node('B', { size: [rel(92, LAYOUT_CONTENT[0]), rel(44, LAYOUT_CONTENT[1])], fill: 'rgba(251,191,36,0.18)', stroke: '#fbbf24', textColor: '#fde68a' }),
+        content.node('C', { size: [rel(92, LAYOUT_CONTENT[0]), rel(44, LAYOUT_CONTENT[1])], fill: 'rgba(34,211,238,0.18)', stroke: '#22d3ee', textColor: '#a5f3fc' }),
     ];
-    content.stack(stackCards, { align: 'topLeft', offset: [10, 10] }).at([306, 110]);
+    content.stack(stackCards, { align: 'topLeft', offset: [10, 10] })
+        .at([rel(306, LAYOUT_CONTENT[0]), rel(110, LAYOUT_CONTENT[1])]);
 
     monoLabel(content, 'row()/column()/grid()/stack()', [16, 244], '#93c5fd');
     monoLabel(content, 'node(label, opts) + edge(from, to, opts)', [190, 244], '#7dd3fc');
@@ -460,8 +471,8 @@ function buildLayoutDemo(z: ZCanvas): void {
 
 function buildContextsDemo(z: ZCanvas): void {
     const plot = z.group()
-        .at([18, 26])
-        .size([232, 188])
+        .at([rel(18, CONTEXTS_CANVAS[0]), rel(26, CONTEXTS_CANVAS[1])])
+        .size([rel(232, CONTEXTS_CANVAS[0]), rel(188, CONTEXTS_CANVAS[1])])
         .coords({
             x: { domain: [0, Math.PI * 2] },
             y: { domain: [-1.2, 1.2] },
@@ -484,7 +495,9 @@ function buildContextsDemo(z: ZCanvas): void {
         .fill('#fbbf24')
         .stroke('#92400e', 1);
 
-    const iso = z.group().at([352, 194]).project('isometric', { angle: 30, scale: 15 });
+    const iso = z.group()
+        .at([rel(352, CONTEXTS_CANVAS[0]), rel(194, CONTEXTS_CANVAS[1])])
+        .project('isometric', { angle: 30, scale: 15 });
 
     for (let i = 0; i <= 6; i++) {
         iso.line([i, 0, 0], [i, 5, 0]).stroke('rgba(148,163,184,0.32)', 1);
@@ -520,16 +533,16 @@ function buildAnimationDemo(z: ZCanvas): DemoRuntime {
     const sinkFill = 'rgba(56,189,248,0.16)';
 
     const source = z.node('Source', {
-        at: [40, 98],
-        size: [116, 62],
+        at: [rel(40, ANIMATION_CANVAS[0]), rel(98, ANIMATION_CANVAS[1])],
+        size: [rel(116, ANIMATION_CANVAS[0]), rel(62, ANIMATION_CANVAS[1])],
         fill: sourceFill,
         stroke: '#818cf8',
         textColor: '#ddd6fe',
     }).dragX(dragBounds);
 
     const sink = z.node('Sink', {
-        at: [364, 146],
-        size: [112, 62],
+        at: [rel(364, ANIMATION_CANVAS[0]), rel(146, ANIMATION_CANVAS[1])],
+        size: [rel(112, ANIMATION_CANVAS[0]), rel(62, ANIMATION_CANVAS[1])],
         fill: sinkFill,
         stroke: '#38bdf8',
         textColor: '#bae6fd',
@@ -631,9 +644,21 @@ function buildThemeDebugDemo(z: ZCanvas): DemoRuntime {
 
     const dragBounds: [number, number, number, number] = [20, 40, 500, 270];
 
-    const a = z.node('A', { at: [42, 78], subtitle: 'drag', size: [102, 62] }).dragWithin(dragBounds);
-    const b = z.node('B', { at: [218, 164], subtitle: 'drag', size: [102, 62] }).dragWithin(dragBounds);
-    const c = z.node('C', { at: [390, 84], subtitle: 'drag', size: [102, 62] }).dragWithin(dragBounds);
+    const a = z.node('A', {
+        at: [rel(42, DEBUG_CANVAS[0]), rel(78, DEBUG_CANVAS[1])],
+        subtitle: 'drag',
+        size: [rel(102, DEBUG_CANVAS[0]), rel(62, DEBUG_CANVAS[1])],
+    }).dragWithin(dragBounds);
+    const b = z.node('B', {
+        at: [rel(218, DEBUG_CANVAS[0]), rel(164, DEBUG_CANVAS[1])],
+        subtitle: 'drag',
+        size: [rel(102, DEBUG_CANVAS[0]), rel(62, DEBUG_CANVAS[1])],
+    }).dragWithin(dragBounds);
+    const c = z.node('C', {
+        at: [rel(390, DEBUG_CANVAS[0]), rel(84, DEBUG_CANVAS[1])],
+        subtitle: 'drag',
+        size: [rel(102, DEBUG_CANVAS[0]), rel(62, DEBUG_CANVAS[1])],
+    }).dragWithin(dragBounds);
 
     const blocker = z.rect([236, 112], [60, 56])
         .radius(10)

@@ -5,11 +5,29 @@ import { StyleManager, type StrokeStyle, type Style } from './style';
 import { Vec2, BBox, Matrix3, type ShapeGeometry } from '../math';
 import { AnchorMap, type AnchorName } from './anchor';
 import {
+    type UnitAxis,
+    type UnitPoint,
+    type UnitReferenceSize,
+    type UnitSpec,
+    type UnitValue,
+    hasRelativeUnits,
+    parseUnitPoint,
+    parseUnitValue,
+    resolveUnitSpec,
+} from './units';
+import {
     PositionConstraint,
     PinConstraint,
+    AlignmentConstraint,
     type AlignOption,
     type ConstraintOptions,
 } from './constraints';
+import {
+    batchSceneMutations,
+    flushMutationEffects,
+    isBatchingSceneMutations,
+    queueMutationEffect,
+} from './mutation';
 
 export type NodePointerEventType =
     | 'pointerenter'
@@ -274,11 +292,15 @@ export abstract class SceneNode {
     private _anchor: AnchorMap | null = null;
 
     // ── Constraints ──
-    private _constraint: PositionConstraint | PinConstraint | null = null;
+    private _constraint: PositionConstraint | PinConstraint | AlignmentConstraint | null = null;
     private _layoutListeners = new Set<() => void>();
     private _eventHandlers = new Map<NodePointerEventType, Set<NodePointerEventHandler>>();
     private _draggable: DraggableOptions | null = null;
     private _stopAnimationFn: (() => void) | null = null;
+    private _positionSpec: [UnitSpec, UnitSpec];
+    private _parentLayoutUnsub: (() => void) | null = null;
+    private _resolvingRelativeUnits = false;
+    private _relativeUnitsQueued = false;
 
     // ── Cached world transform ──
     private _worldTransformDirty = true;
@@ -296,6 +318,11 @@ export abstract class SceneNode {
 
     constructor(position: Vec2 = Vec2.zero()) {
         this.id = nextId++;
+        this._positionSpec = parseUnitPoint(
+            [position.x, position.y],
+            'position.x',
+            'position.y',
+        );
         this._position = new Signal(position);
         this._rotation = new Signal(0);
         this._scale = new Signal(new Vec2(1, 1));
@@ -317,21 +344,137 @@ export abstract class SceneNode {
         this._visible.subscribe(markRenderDirty);
     }
 
+    /**
+     * Reference size for descendants resolving percentage-based units.
+     * Container-like nodes override this.
+     */
+    _getUnitReferenceSizeForChildren(): UnitReferenceSize | null {
+        return null;
+    }
+
+    /**
+     * Parent reference size used for this node's own percentage-based units.
+     */
+    _getParentUnitReferenceSize(): UnitReferenceSize | null {
+        if (!this.parent) return null;
+        return this.parent._getUnitReferenceSizeForChildren();
+    }
+
+    /**
+     * Resolve a unit spec against this node's parent reference size.
+     * Throws with a clear error if a percentage cannot be resolved.
+     */
+    _resolveUnitSpec(spec: UnitSpec, axis: UnitAxis, context: string): number {
+        return resolveUnitSpec(spec, axis, this._getParentUnitReferenceSize(), context);
+    }
+
+    /**
+     * Resolve a unit value against this node's parent reference size.
+     * Throws with a clear error if a percentage cannot be resolved.
+     */
+    _resolveUnitValue(value: UnitValue, axis: UnitAxis, context: string): number {
+        return this._resolveUnitSpec(parseUnitValue(value, context), axis, context);
+    }
+
+    protected _hasRelativeUnitSpecs(): boolean {
+        return hasRelativeUnits(this._positionSpec);
+    }
+
+    protected _resolveRelativeUnits(): void {
+        this._resolvePositionFromSpec();
+    }
+
+    private _resolvePositionFromSpec(): void {
+        if (!this.parent && hasRelativeUnits(this._positionSpec)) {
+            // Defer resolution until this node is attached to a parent.
+            return;
+        }
+
+        const next = new Vec2(
+            this._resolveUnitSpec(this._positionSpec[0], 'x', 'position.x'),
+            this._resolveUnitSpec(this._positionSpec[1], 'y', 'position.y'),
+        );
+        if (!this._position.get().equals(next)) {
+            this._position.set(next);
+        }
+    }
+
+    private _syncParentLayoutSubscription(): void {
+        const needsParentLayout = this._hasRelativeUnitSpecs();
+        if (!this.parent || !needsParentLayout) {
+            this._parentLayoutUnsub?.();
+            this._parentLayoutUnsub = null;
+            return;
+        }
+
+        if (this._parentLayoutUnsub) return;
+        this._parentLayoutUnsub = this.parent.watchLayout(() => {
+            this._onParentLayoutChanged();
+        });
+    }
+
+    private _onParentLayoutChanged(): void {
+        if (this._relativeUnitsQueued) return;
+        this._relativeUnitsQueued = true;
+        queueMutationEffect(() => {
+            this._relativeUnitsQueued = false;
+            if (this._resolvingRelativeUnits) return;
+            this._resolvingRelativeUnits = true;
+            try {
+                this._resolveRelativeUnits();
+            } finally {
+                this._resolvingRelativeUnits = false;
+            }
+        }, 'high');
+        if (!isBatchingSceneMutations()) {
+            flushMutationEffects();
+        }
+    }
+
+    private _onParentChanged(): void {
+        this._syncParentLayoutSubscription();
+        this._onParentLayoutChanged();
+    }
+
+    protected _refreshRelativeUnitTracking(): void {
+        this._syncParentLayoutSubscription();
+        this._onParentLayoutChanged();
+    }
+
+    protected _settleForMeasurement(): void {
+        flushMutationEffects();
+    }
+
+    /**
+     * Batch multiple structural/layout mutations into one settlement pass.
+     * Use this when constructing larger scenes to avoid repeated synchronous
+     * auto-layout and constraint recomputation.
+     */
+    batch<T>(fn: () => T): T {
+        return batchSceneMutations(fn);
+    }
+
     // ── Chainable transform API ──
 
-    pos(position: [number, number]): this;
-    pos(x: number, y: number): this;
-    pos(xOrPosition: number | [number, number], y?: number): this {
-        const next = Array.isArray(xOrPosition)
-            ? new Vec2(xOrPosition[0], xOrPosition[1])
-            : new Vec2(xOrPosition, y!);
-        this._position.set(next);
+    pos(position: UnitPoint): this;
+    pos(x: UnitValue, y: UnitValue): this;
+    pos(xOrPosition: UnitValue | UnitPoint, y?: UnitValue): this {
+        const specs = Array.isArray(xOrPosition)
+            ? parseUnitPoint([xOrPosition[0], xOrPosition[1]], 'position.x', 'position.y')
+            : parseUnitPoint([xOrPosition, y!], 'position.x', 'position.y');
+
+        this._positionSpec = specs;
+        this._syncParentLayoutSubscription();
+        this._resolvePositionFromSpec();
         return this;
     }
 
     move(dx: number, dy: number): this {
         const p = this._position.get();
-        this._position.set(new Vec2(p.x + dx, p.y + dy));
+        const next = new Vec2(p.x + dx, p.y + dy);
+        this._positionSpec = parseUnitPoint([next.x, next.y], 'position.x', 'position.y');
+        this._syncParentLayoutSubscription();
+        this._position.set(next);
         return this;
     }
 
@@ -713,10 +856,9 @@ export abstract class SceneNode {
      * Set absolute position (shorthand for `.pos()`).
      * Unlike `.pos()`, accepts a tuple and is designed for use with helpers like `Z.midpoint()`.
      */
-    at(position: [number, number]): this {
+    at(position: UnitPoint): this {
         this._disposeConstraint();
-        this._position.set(new Vec2(position[0], position[1]));
-        return this;
+        return this.pos(position);
     }
 
     /**
@@ -727,24 +869,45 @@ export abstract class SceneNode {
     pin(
         target: SceneNode,
         anchor: AnchorName,
-        opts?: { offset?: [number, number] },
+        opts?: { offset?: UnitPoint },
     ): this;
     pin(
         target: SceneNode,
         anchorFn: () => [number, number],
-        opts?: { offset?: [number, number] },
+        opts?: { offset?: UnitPoint },
     ): this;
     pin(
         target: SceneNode,
         anchorOrFn: AnchorName | (() => [number, number]),
-        opts?: { offset?: [number, number] },
+        opts?: { offset?: UnitPoint },
     ): this {
         this._disposeConstraint();
-        const offset = opts?.offset ? Vec2.from(opts.offset) : Vec2.zero();
         const anchorFn = typeof anchorOrFn === 'string'
             ? () => target.anchor.get(anchorOrFn)
             : anchorOrFn;
-        this._constraint = new PinConstraint(this, target, anchorFn, offset);
+        this._constraint = new PinConstraint(this, target, anchorFn, opts?.offset);
+        return this;
+    }
+
+    /**
+     * Aligns a specific anchor on this node to a specific anchor on the target node.
+     * Unlike `pin()` which sets the origin of this node, `alignTarget()` ensures that 
+     * `this.anchor.get(selfAnchor)` explicitly matches `target.anchor.get(targetAnchor)`.
+     */
+    alignTarget(
+        target: SceneNode,
+        selfAnchor: AnchorName,
+        targetAnchor: AnchorName,
+        opts?: { offset?: UnitPoint },
+    ): this {
+        this._disposeConstraint();
+        this._constraint = new AlignmentConstraint(
+            this,
+            target,
+            () => this.anchor.get(selfAnchor),
+            () => target.anchor.get(targetAnchor),
+            opts?.offset
+        );
         return this;
     }
 
@@ -762,12 +925,12 @@ export abstract class SceneNode {
     follow(
         target: SceneNode,
         anchor: AnchorName,
-        opts?: { offset?: [number, number] },
+        opts?: { offset?: UnitPoint },
     ): this;
     follow(
         target: SceneNode,
         relationOrAnchor: FollowDirection | AnchorName = 'center',
-        opts?: ConstraintOptions & { offset?: [number, number] },
+        opts?: ConstraintOptions & { offset?: UnitPoint },
     ): this {
         // Directional placement for above/below always.
         if (relationOrAnchor === 'above') {
@@ -869,25 +1032,31 @@ export abstract class SceneNode {
     // ── Tree management ──
 
     addChild(child: SceneNode): this {
-        if (child.parent) {
-            child.parent.removeChild(child);
-        }
-        child.parent = this;
-        this.children.push(child);
-        child._markTransformDirty();
-        child._inheritDirtyCallback(this._onDirty);
-        this._markRenderDirty(true);
+        batchSceneMutations(() => {
+            if (child.parent) {
+                child.parent.removeChild(child);
+            }
+            child.parent = this;
+            child._onParentChanged();
+            this.children.push(child);
+            child._markTransformDirty();
+            child._inheritDirtyCallback(this._onDirty);
+            this._markRenderDirty(true);
+        });
         return this;
     }
 
     removeChild(child: SceneNode): this {
-        const idx = this.children.indexOf(child);
-        if (idx !== -1) {
-            this.children.splice(idx, 1);
-            child.parent = null;
-            child._inheritDirtyCallback(null);
-            this._markRenderDirty(true);
-        }
+        batchSceneMutations(() => {
+            const idx = this.children.indexOf(child);
+            if (idx !== -1) {
+                this.children.splice(idx, 1);
+                child.parent = null;
+                child._onParentChanged();
+                child._inheritDirtyCallback(null);
+                this._markRenderDirty(true);
+            }
+        });
         return this;
     }
 
@@ -930,6 +1099,7 @@ export abstract class SceneNode {
 
     /** Compute world-space bounding box (cached, invalidated on transform changes). */
     computeWorldBBox(): BBox {
+        this._settleForMeasurement();
         if (this._worldBBoxDirty) {
             const local = this.computeLocalBBox();
             if (local.isEmpty()) {
@@ -948,29 +1118,33 @@ export abstract class SceneNode {
     // ── Dirty tracking ──
 
     _markTransformDirty(propagateToAncestors = true): void {
-        this._localTransformDirty = true;
-        this._worldTransformDirty = true;
-        this._worldBBoxDirty = true;
-        this._renderDirty = true;
-        this._emitLayoutChange();
+        batchSceneMutations(() => {
+            this._localTransformDirty = true;
+            this._worldTransformDirty = true;
+            this._worldBBoxDirty = true;
+            this._renderDirty = true;
+            this._emitLayoutChange();
 
-        for (const child of this.children) {
-            child._markTransformDirty(false);
-        }
-        if (propagateToAncestors) {
-            this._markAncestorLayoutDirty();
-        }
-        this._onDirty?.();
+            for (const child of this.children) {
+                child._markTransformDirty(false);
+            }
+            if (propagateToAncestors) {
+                this._markAncestorLayoutDirty();
+            }
+            this._onDirty?.();
+        });
     }
 
     _markRenderDirty(layoutChanged = false): void {
-        this._worldBBoxDirty = true;
-        this._renderDirty = true;
-        if (layoutChanged) {
-            this._emitLayoutChange();
-            this._markAncestorLayoutDirty();
-        }
-        this._onDirty?.();
+        batchSceneMutations(() => {
+            this._worldBBoxDirty = true;
+            this._renderDirty = true;
+            if (layoutChanged) {
+                this._emitLayoutChange();
+                this._markAncestorLayoutDirty();
+            }
+            this._onDirty?.();
+        });
     }
 
     isRenderDirty(): boolean {
@@ -1008,7 +1182,10 @@ export abstract class SceneNode {
     private _emitLayoutChange(): void {
         const listeners = [...this._layoutListeners];
         for (const listener of listeners) {
-            listener();
+            queueMutationEffect(listener, 'normal');
+        }
+        if (!isBatchingSceneMutations()) {
+            flushMutationEffects();
         }
     }
 

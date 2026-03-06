@@ -2,6 +2,13 @@ import { SceneNode, type NodeType } from '../core/node';
 import { Signal } from '../core/signal';
 import { Vec2, BBox, type ShapeGeometry } from '../math';
 import type { AnchorName } from '../core/anchor';
+import {
+    type UnitPoint,
+    type UnitSpec,
+    type UnitValue,
+    hasRelativeUnits,
+    parseUnitPoint,
+} from '../core/units';
 
 export type LineRouteMode = 'straight' | 'step' | 'orthogonal';
 
@@ -19,8 +26,8 @@ export type LineAnchorRef =
 export interface LineConnectOptions {
     from?: LineAnchorRef;
     to?: LineAnchorRef;
-    fromOffset?: [number, number];
-    toOffset?: [number, number];
+    fromOffset?: UnitPoint;
+    toOffset?: UnitPoint;
 }
 
 export class Line extends SceneNode {
@@ -30,12 +37,16 @@ export class Line extends SceneNode {
     readonly _routeMode: Signal<LineRouteMode>;
     readonly _routeRadius: Signal<number>;
     readonly _avoidObstacles: Signal<boolean>;
+    private _fromSpec: [UnitSpec, UnitSpec];
+    private _toSpec: [UnitSpec, UnitSpec];
     private _disconnectBinding: (() => void) | null = null;
 
     constructor(from: Vec2, to: Vec2) {
         super(Vec2.zero());
         this._from = new Signal(from);
         this._to = new Signal(to);
+        this._fromSpec = parseUnitPoint([from.x, from.y], 'line from.x', 'line from.y');
+        this._toSpec = parseUnitPoint([to.x, to.y], 'line to.x', 'line to.y');
         this._routeMode = new Signal<LineRouteMode>('straight');
         this._routeRadius = new Signal(0);
         this._avoidObstacles = new Signal(false);
@@ -51,25 +62,69 @@ export class Line extends SceneNode {
     }
 
     /** Set the start point. */
-    from(point: [number, number]): this;
-    from(x: number, y: number): this;
-    from(xOrPoint: number | [number, number], y?: number): this {
-        const next = Array.isArray(xOrPoint)
-            ? Vec2.from(xOrPoint)
-            : new Vec2(xOrPoint, y!);
-        this._from.set(next);
+    from(point: UnitPoint): this;
+    from(x: UnitValue, y: UnitValue): this;
+    from(xOrPoint: UnitValue | UnitPoint, y?: UnitValue): this {
+        this._fromSpec = Array.isArray(xOrPoint)
+            ? parseUnitPoint([xOrPoint[0], xOrPoint[1]], 'line from.x', 'line from.y')
+            : parseUnitPoint([xOrPoint, y!], 'line from.x', 'line from.y');
+        this._resolveFromSpec();
+        this._refreshRelativeUnitTracking();
         return this;
     }
 
     /** Set the end point. */
-    to(point: [number, number]): this;
-    to(x: number, y: number): this;
-    to(xOrPoint: number | [number, number], y?: number): this {
-        const next = Array.isArray(xOrPoint)
-            ? Vec2.from(xOrPoint)
-            : new Vec2(xOrPoint, y!);
-        this._to.set(next);
+    to(point: UnitPoint): this;
+    to(x: UnitValue, y: UnitValue): this;
+    to(xOrPoint: UnitValue | UnitPoint, y?: UnitValue): this {
+        this._toSpec = Array.isArray(xOrPoint)
+            ? parseUnitPoint([xOrPoint[0], xOrPoint[1]], 'line to.x', 'line to.y')
+            : parseUnitPoint([xOrPoint, y!], 'line to.x', 'line to.y');
+        this._resolveToSpec();
+        this._refreshRelativeUnitTracking();
         return this;
+    }
+
+    protected override _hasRelativeUnitSpecs(): boolean {
+        return super._hasRelativeUnitSpecs()
+            || hasRelativeUnits(this._fromSpec)
+            || hasRelativeUnits(this._toSpec);
+    }
+
+    protected override _resolveRelativeUnits(): void {
+        super._resolveRelativeUnits();
+        this._resolveFromSpec();
+        this._resolveToSpec();
+    }
+
+    private _resolveFromSpec(): void {
+        if (!this.parent && hasRelativeUnits(this._fromSpec)) {
+            // Defer until attached to a parent that can provide reference size.
+            return;
+        }
+
+        const next = new Vec2(
+            this._resolveUnitSpec(this._fromSpec[0], 'x', 'line from.x'),
+            this._resolveUnitSpec(this._fromSpec[1], 'y', 'line from.y'),
+        );
+        if (!this._from.get().equals(next)) {
+            this._from.set(next);
+        }
+    }
+
+    private _resolveToSpec(): void {
+        if (!this.parent && hasRelativeUnits(this._toSpec)) {
+            // Defer until attached to a parent that can provide reference size.
+            return;
+        }
+
+        const next = new Vec2(
+            this._resolveUnitSpec(this._toSpec[0], 'x', 'line to.x'),
+            this._resolveUnitSpec(this._toSpec[1], 'y', 'line to.y'),
+        );
+        if (!this._to.get().equals(next)) {
+            this._to.set(next);
+        }
     }
 
     route(mode: LineRouteMode, opts: LineRouteOptions = {}): this {
@@ -92,8 +147,8 @@ export class Line extends SceneNode {
 
         const fromRef = opts.from ?? 'auto';
         const toRef = opts.to ?? 'auto';
-        const fromOffset = Vec2.from(opts.fromOffset ?? [0, 0]);
-        const toOffset = Vec2.from(opts.toOffset ?? [0, 0]);
+        const fromOffset = parseUnitPoint(opts.fromOffset ?? [0, 0], 'line fromOffset.x', 'line fromOffset.y');
+        const toOffset = parseUnitPoint(opts.toOffset ?? [0, 0], 'line toOffset.x', 'line toOffset.y');
 
         const resolve = (node: SceneNode, other: SceneNode, ref: LineAnchorRef): Vec2 => {
             if (typeof ref === 'function') {
@@ -112,8 +167,18 @@ export class Line extends SceneNode {
         };
 
         const update = () => {
-            const worldFrom = resolve(fromNode, toNode, fromRef).add(fromOffset);
-            const worldTo = resolve(toNode, fromNode, toRef).add(toOffset);
+            const worldFrom = resolve(fromNode, toNode, fromRef).add(
+                new Vec2(
+                    this._resolveUnitSpec(fromOffset[0], 'x', 'line fromOffset.x'),
+                    this._resolveUnitSpec(fromOffset[1], 'y', 'line fromOffset.y'),
+                ),
+            );
+            const worldTo = resolve(toNode, fromNode, toRef).add(
+                new Vec2(
+                    this._resolveUnitSpec(toOffset[0], 'x', 'line toOffset.x'),
+                    this._resolveUnitSpec(toOffset[1], 'y', 'line toOffset.y'),
+                ),
+            );
             const inv = this.getWorldTransform().invert();
             const localFrom = inv.transformPoint(worldFrom);
             const localTo = inv.transformPoint(worldTo);
@@ -122,9 +187,13 @@ export class Line extends SceneNode {
 
         const unsubFrom = fromNode.watchLayout(update);
         const unsubTo = toNode.watchLayout(update);
+        const unsubParent = (hasRelativeUnits(fromOffset) || hasRelativeUnits(toOffset))
+            ? this.parent?.watchLayout(update) ?? null
+            : null;
         this._disconnectBinding = () => {
             unsubFrom();
             unsubTo();
+            unsubParent?.();
         };
 
         update();
@@ -207,6 +276,7 @@ export class Line extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
+        this._settleForMeasurement();
         return BBox.fromPoints(this.getRoutePoints());
     }
 

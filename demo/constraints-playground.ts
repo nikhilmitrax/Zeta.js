@@ -1,5 +1,5 @@
 import type { RendererType } from '../src/canvas';
-import { caption, createCanvas, makeDraggable, mountRendererDemo, title } from './demo-kit';
+import { caption, createCanvas, makeDraggable, mountRendererDemo, rel, title } from './demo-kit';
 
 const WIDTH = 980;
 const HEIGHT = 640;
@@ -17,8 +17,8 @@ function createDemo(renderer: RendererType) {
     );
 
     const leader = makeDraggable(z.node('Leader', {
-        at: [420, 248],
-        size: [150, 86],
+        at: [rel(420, WIDTH), rel(248, HEIGHT)],
+        size: [rel(150, WIDTH), rel(86, HEIGHT)],
         subtitle: 'drag me',
         fill: 'rgba(99,102,241,0.2)',
         stroke: '#818cf8',
@@ -27,35 +27,35 @@ function createDemo(renderer: RendererType) {
     }));
 
     const left = z.node('Left', {
-        size: [118, 64],
+        size: [rel(118, WIDTH), rel(64, HEIGHT)],
         fill: 'rgba(251,191,36,0.16)',
         stroke: '#fbbf24',
         textColor: '#fde68a',
     }).follow(leader, 'left', { gap: 54, align: 'center' });
 
     const right = z.node('Right', {
-        size: [118, 64],
+        size: [rel(118, WIDTH), rel(64, HEIGHT)],
         fill: 'rgba(56,189,248,0.16)',
         stroke: '#38bdf8',
         textColor: '#bae6fd',
     }).follow(leader, 'right', { gap: 54, align: 'center' });
 
     const above = z.node('Above', {
-        size: [118, 64],
+        size: [rel(118, WIDTH), rel(64, HEIGHT)],
         fill: 'rgba(244,114,182,0.16)',
         stroke: '#f472b6',
         textColor: '#f9a8d4',
     }).follow(leader, 'above', { gap: 44, align: 'center' });
 
     const below = z.node('Below', {
-        size: [118, 64],
+        size: [rel(118, WIDTH), rel(64, HEIGHT)],
         fill: 'rgba(16,185,129,0.16)',
         stroke: '#34d399',
         textColor: '#a7f3d0',
     }).follow(leader, 'below', { gap: 50, align: 'center' });
 
     const chainA = z.node('Chain A', {
-        size: [100, 50],
+        size: [rel(100, WIDTH), rel(50, HEIGHT)],
         fill: 'rgba(30,41,59,0.65)',
         stroke: '#64748b',
         textColor: '#cbd5e1',
@@ -63,7 +63,7 @@ function createDemo(renderer: RendererType) {
     }).follow(right, 'right', { gap: 32, align: 'start' });
 
     const chainB = z.node('Chain B', {
-        size: [100, 50],
+        size: [rel(100, WIDTH), rel(50, HEIGHT)],
         fill: 'rgba(30,41,59,0.65)',
         stroke: '#64748b',
         textColor: '#cbd5e1',
@@ -71,7 +71,7 @@ function createDemo(renderer: RendererType) {
     }).follow(chainA, 'below', { gap: 14, align: 'start' });
 
     const chainC = z.node('Chain C', {
-        size: [100, 50],
+        size: [rel(100, WIDTH), rel(50, HEIGHT)],
         fill: 'rgba(30,41,59,0.65)',
         stroke: '#64748b',
         textColor: '#cbd5e1',

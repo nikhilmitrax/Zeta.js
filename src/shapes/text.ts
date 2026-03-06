@@ -108,6 +108,7 @@ export class Text extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
+        this._settleForMeasurement();
         // Text bbox is approximate (no canvas context here).
         // We estimate based on character count × font size.
         const content = this.getRenderedContent();
@@ -116,7 +117,42 @@ export class Text extends SceneNode {
         const widthFactor = this.isLatex() ? 0.64 : 0.6;
         const approxWidth = content.length * fontSize * widthFactor * displayScale;
         const approxHeight = fontSize * 1.2 * displayScale;
-        return BBox.fromPosSize(0, -approxHeight, approxWidth, approxHeight);
+        const align = this._textAlign.get();
+        const baseline = this._textBaseline.get();
+
+        let minX = 0;
+        switch (align) {
+            case 'center':
+                minX = -approxWidth / 2;
+                break;
+            case 'right':
+                minX = -approxWidth;
+                break;
+        }
+
+        let minY: number;
+        let maxY: number;
+        switch (baseline) {
+            case 'top':
+                minY = 0;
+                maxY = approxHeight;
+                break;
+            case 'middle':
+                minY = -approxHeight / 2;
+                maxY = approxHeight / 2;
+                break;
+            case 'bottom':
+                minY = -approxHeight;
+                maxY = 0;
+                break;
+            case 'alphabetic':
+            default:
+                minY = -approxHeight * 0.8;
+                maxY = approxHeight * 0.2;
+                break;
+        }
+
+        return new BBox(minX, minY, minX + approxWidth, maxY);
     }
 
     getShapeGeometry(): ShapeGeometry {

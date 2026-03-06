@@ -1,5 +1,5 @@
 import type { RendererType } from '../src/canvas';
-import { caption, createCanvas, makeDraggable, mountRendererDemo, title } from './demo-kit';
+import { caption, createCanvas, makeDraggable, mountRendererDemo, rel, title } from './demo-kit';
 
 const WIDTH = 980;
 const HEIGHT = 640;
@@ -17,8 +17,8 @@ function createDemo(renderer: RendererType) {
     );
 
     const source = makeDraggable(z.node('Source', {
-        at: [86, 224],
-        size: [160, 88],
+        at: [rel(86, WIDTH), rel(224, HEIGHT)],
+        size: [rel(160, WIDTH), rel(88, HEIGHT)],
         subtitle: 'capture',
         fill: 'rgba(251,191,36,0.16)',
         stroke: '#fbbf24',
@@ -28,8 +28,8 @@ function createDemo(renderer: RendererType) {
     }));
 
     const transform = makeDraggable(z.node('Transform', {
-        at: [372, 170],
-        size: [188, 96],
+        at: [rel(372, WIDTH), rel(170, HEIGHT)],
+        size: [rel(188, WIDTH), rel(96, HEIGHT)],
         subtitle: 'normalize + score',
         fill: 'rgba(99,102,241,0.16)',
         stroke: '#818cf8',
@@ -39,8 +39,8 @@ function createDemo(renderer: RendererType) {
     }));
 
     const output = makeDraggable(z.node('Output', {
-        at: [700, 236],
-        size: [160, 88],
+        at: [rel(700, WIDTH), rel(236, HEIGHT)],
+        size: [rel(160, WIDTH), rel(88, HEIGHT)],
         subtitle: 'dashboard',
         fill: 'rgba(56,189,248,0.16)',
         stroke: '#38bdf8',
@@ -50,8 +50,8 @@ function createDemo(renderer: RendererType) {
     }));
 
     const metrics = makeDraggable(z.node('Metrics', {
-        at: [420, 414],
-        size: [140, 72],
+        at: [rel(420, WIDTH), rel(414, HEIGHT)],
+        size: [rel(140, WIDTH), rel(72, HEIGHT)],
         subtitle: 'latency + SLA',
         fill: 'rgba(16,185,129,0.16)',
         stroke: '#34d399',

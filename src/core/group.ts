@@ -3,6 +3,19 @@
 import { SceneNode, type NodeType } from './node';
 import { Signal } from './signal';
 import { BBox, Vec2, type ShapeGeometry } from '../math';
+import {
+    type UnitPoint,
+    type UnitReferenceSize,
+    type UnitSize,
+    type UnitSpec,
+    type UnitValue,
+    hasRelativeUnits,
+    isRelativeUnit,
+    parseUnitPoint,
+    parseUnitSize,
+    parseUnitValue,
+    resolveUnitSpec,
+} from './units';
 import { Rect } from '../shapes/rect';
 import { Circle } from '../shapes/circle';
 import { Path } from '../shapes/path';
@@ -14,6 +27,11 @@ import {
     type LineRouteOptions,
 } from '../shapes/line';
 import type { AnchorName } from './anchor';
+import {
+    flushMutationEffects,
+    isBatchingSceneMutations,
+    queueMutationEffect,
+} from './mutation';
 
 export type CoordScaleType = 'linear' | 'log';
 
@@ -51,19 +69,19 @@ export type LayoutAlignX = 'left' | 'center' | 'right';
 export type LayoutAlignY = 'top' | 'center' | 'bottom';
 
 export interface RowLayoutOptions {
-    gap?: number;
+    gap?: UnitValue;
     align?: LayoutAlignY;
 }
 
 export interface ColumnLayoutOptions {
-    gap?: number;
+    gap?: UnitValue;
     align?: LayoutAlignX;
 }
 
 export interface GridLayoutOptions {
     columns?: number;
     rows?: number;
-    gap?: number | [number, number];
+    gap?: UnitValue | UnitPoint;
     alignX?: LayoutAlignX;
     alignY?: LayoutAlignY;
 }
@@ -81,12 +99,12 @@ export type StackLayoutAlign =
 
 export interface StackLayoutOptions {
     align?: StackLayoutAlign;
-    offset?: [number, number];
+    offset?: UnitPoint;
 }
 
 export interface ContainerOptions {
-    at?: [number, number] | [number, number, number];
-    size?: [number, number];
+    at?: UnitPoint | [number, number, number];
+    size?: UnitSize;
     padding?: number | [number, number];
     radius?: number;
     fill?: string;
@@ -96,13 +114,13 @@ export interface ContainerOptions {
     titleColor?: string;
     titleFontSize?: number;
     titleFontFamily?: string;
-    contentOffset?: [number, number];
+    contentOffset?: UnitPoint;
 }
 
 export interface NodeOptions {
-    at?: [number, number] | [number, number, number];
-    size?: [number, number];
-    minSize?: [number, number];
+    at?: UnitPoint | [number, number, number];
+    size?: UnitSize;
+    minSize?: UnitSize;
     padding?: number | [number, number];
     radius?: number;
     fill?: string;
@@ -124,7 +142,7 @@ export type NodePortSide = 'left' | 'right' | 'top' | 'bottom';
 export interface NodePortSpec {
     name: string;
     side?: NodePortSide;
-    offset?: number;
+    offset?: UnitValue;
     color?: string;
     radius?: number;
 }
@@ -144,18 +162,18 @@ export type ContainerGroup = Group & {
 };
 
 type LayoutConfig =
-    | { mode: 'row'; gap: number; align: LayoutAlignY }
-    | { mode: 'column'; gap: number; align: LayoutAlignX }
+    | { mode: 'row'; gap: UnitSpec; align: LayoutAlignY }
+    | { mode: 'column'; gap: UnitSpec; align: LayoutAlignX }
     | {
         mode: 'grid';
         columns: number | null;
         rows: number | null;
-        gapX: number;
-        gapY: number;
+        gapX: UnitSpec;
+        gapY: UnitSpec;
         alignX: LayoutAlignX;
         alignY: LayoutAlignY;
     }
-    | { mode: 'stack'; align: StackLayoutAlign; offset: Vec2 };
+    | { mode: 'stack'; align: StackLayoutAlign; offset: [UnitSpec, UnitSpec] };
 
 type LayoutChildMetrics = {
     node: SceneNode;
@@ -167,34 +185,75 @@ type LayoutChildMetrics = {
 export class Group extends SceneNode {
     readonly type: NodeType = 'group';
     readonly _size: Signal<Vec2 | null>;
+    private _sizeSpec: [UnitSpec, UnitSpec] | null = null;
 
     private _coords: CoordsConfig | null = null;
     private _projection: { mode: 'isometric'; angleRad: number; scale: number } | null = null;
     private _layoutConfig: LayoutConfig | null = null;
     private _layoutSubscriptions = new Map<SceneNode, () => void>();
     private _isApplyingLayout = false;
+    private _layoutQueued = false;
 
     constructor(position: Vec2 = Vec2.zero()) {
         super(position);
         this._size = new Signal<Vec2 | null>(null);
-        this._size.subscribe(() => this._markRenderDirty(true));
+        this._size.subscribe(() => {
+            this._markRenderDirty(true);
+            if (this._layoutConfig && !this._isApplyingLayout) {
+                this._requestAutoLayout();
+            }
+        });
+    }
+
+    override _getUnitReferenceSizeForChildren(): UnitReferenceSize | null {
+        const size = this._size.get();
+        if (!size) return null;
+        return { width: size.x, height: size.y };
+    }
+
+    protected override _hasRelativeUnitSpecs(): boolean {
+        return super._hasRelativeUnitSpecs()
+            || (this._sizeSpec ? hasRelativeUnits(this._sizeSpec) : false);
+    }
+
+    protected override _resolveRelativeUnits(): void {
+        super._resolveRelativeUnits();
+        this._resolveSizeFromSpec();
+    }
+
+    private _resolveSizeFromSpec(): void {
+        if (!this._sizeSpec) return;
+        if (!this.parent && hasRelativeUnits(this._sizeSpec)) {
+            // Defer until attached to a parent that can provide reference size.
+            return;
+        }
+
+        const next = new Vec2(
+            this._resolveUnitSpec(this._sizeSpec[0], 'x', 'group size.width'),
+            this._resolveUnitSpec(this._sizeSpec[1], 'y', 'group size.height'),
+        );
+        const current = this._size.get();
+        if (!current || !current.equals(next)) {
+            this._size.set(next);
+        }
     }
 
     override addChild(child: SceneNode): this {
         super.addChild(child);
         this._subscribeLayoutChild(child);
-        this._applyAutoLayout();
+        this._requestAutoLayout();
         return this;
     }
 
     override removeChild(child: SceneNode): this {
         this._unsubscribeLayoutChild(child);
         super.removeChild(child);
-        this._applyAutoLayout();
+        this._requestAutoLayout();
         return this;
     }
 
     computeLocalBBox(): BBox {
+        this._settleForMeasurement();
         let box = this._size.get()
             ? BBox.fromPosSize(0, 0, this._size.get()!.x, this._size.get()!.y)
             : BBox.empty();
@@ -220,14 +279,15 @@ export class Group extends SceneNode {
         return { type: 'rect', bbox: this.computeLocalBBox() };
     }
 
-    size(size: [number, number]): this;
-    size(w: number, h: number): this;
-    size(sizeOrW: [number, number] | number, h?: number): this {
-        if (typeof sizeOrW === 'number') {
-            this._size.set(new Vec2(sizeOrW, h ?? sizeOrW));
-            return this;
-        }
-        this._size.set(Vec2.from(sizeOrW));
+    size(size: UnitSize): this;
+    size(w: UnitValue, h: UnitValue): this;
+    size(sizeOrW: UnitSize | UnitValue, h?: UnitValue): this {
+        const specs = Array.isArray(sizeOrW)
+            ? parseUnitSize(sizeOrW, 'group size.width', 'group size.height')
+            : parseUnitSize([sizeOrW, h ?? sizeOrW], 'group size.width', 'group size.height');
+        this._sizeSpec = specs;
+        this._resolveSizeFromSpec();
+        this._refreshRelativeUnitTracking();
         return this;
     }
 
@@ -248,53 +308,69 @@ export class Group extends SceneNode {
         return this;
     }
 
-    rect(pos: [number, number] | [number, number, number], size: [number, number]): Rect {
-        const node = new Rect(this._mapPoint(pos), Vec2.from(size));
+    rect(pos: UnitPoint | [number, number, number], size: UnitSize): Rect {
+        const node = new Rect(Vec2.zero(), new Vec2(0, 0));
         this.addChild(node);
+        node.pos(this._resolveFactoryPoint(pos));
+        node.size(size);
         return node;
     }
 
-    circle(radius: number): Circle;
-    circle(center: [number, number] | [number, number, number], radius: number): Circle;
-    circle(centerOrRadius: [number, number] | [number, number, number] | number, radius?: number): Circle {
-        if (typeof centerOrRadius === 'number') {
-            const node = new Circle(Vec2.zero(), centerOrRadius);
+    circle(radius: UnitValue): Circle;
+    circle(center: UnitPoint | [number, number, number], radius: UnitValue): Circle;
+    circle(centerOrRadius: UnitPoint | [number, number, number] | UnitValue, radius?: UnitValue): Circle {
+        if (typeof centerOrRadius === 'number' || typeof centerOrRadius === 'string') {
+            const node = new Circle(Vec2.zero(), 0);
             this.addChild(node);
+            node.setRadius(centerOrRadius);
             return node;
         }
-        const node = new Circle(this._mapPoint(centerOrRadius), radius!);
+        const node = new Circle(Vec2.zero(), 0);
         this.addChild(node);
+        node.pos(this._resolveFactoryPoint(centerOrRadius));
+        node.setRadius(radius!);
         return node;
     }
 
-    text(content: string, pos?: [number, number] | [number, number, number]): Text {
-        const node = new Text(content, pos ? this._mapPoint(pos) : Vec2.zero());
+    text(content: string, pos?: UnitPoint | [number, number, number]): Text {
+        const node = new Text(content, Vec2.zero());
         this.addChild(node);
+        if (pos) {
+            node.pos(this._resolveFactoryPoint(pos));
+        }
         return node;
     }
 
     tex(
         expression: string,
-        pos?: [number, number] | [number, number, number],
+        pos?: UnitPoint | [number, number, number],
         opts: LatexTextOptions = {},
     ): Text {
-        const node = new Text(expression, pos ? this._mapPoint(pos) : Vec2.zero()).latex(expression, opts);
+        const node = new Text(expression, Vec2.zero()).latex(expression, opts);
         this.addChild(node);
+        if (pos) {
+            node.pos(this._resolveFactoryPoint(pos));
+        }
         return node;
     }
 
-    path(pos?: [number, number] | [number, number, number]): Path {
-        const node = new Path(pos ? this._mapPoint(pos) : Vec2.zero());
+    path(pos?: UnitPoint | [number, number, number]): Path {
+        const node = new Path(Vec2.zero());
         this.addChild(node);
+        if (pos) {
+            node.pos(this._resolveFactoryPoint(pos));
+        }
         return node;
     }
 
     line(
-        from: [number, number] | [number, number, number],
-        to: [number, number] | [number, number, number],
+        from: UnitPoint | [number, number, number],
+        to: UnitPoint | [number, number, number],
     ): Line {
-        const node = new Line(this._mapPoint(from), this._mapPoint(to));
+        const node = new Line(Vec2.zero(), Vec2.zero());
         this.addChild(node);
+        node.from(this._resolveFactoryPoint(from));
+        node.to(this._resolveFactoryPoint(to));
         return node;
     }
 
@@ -330,49 +406,66 @@ export class Group extends SceneNode {
     }
 
     container(opts: ContainerOptions = {}): ContainerGroup {
-        const position = opts.at ? this._mapPoint(opts.at) : Vec2.zero();
-        const container = new Group(position) as ContainerGroup;
-        this.addChild(container);
+        return this.batch(() => {
+            const container = new Group() as ContainerGroup;
+            this.addChild(container);
+            if (opts.at) {
+                container.pos(this._resolveFactoryPoint(opts.at));
+            }
 
-        const [width, height] = opts.size ?? [320, 200];
-        const [padX, padY] = this._normalizePadding(opts.padding ?? 16);
+            container.size(opts.size ?? [320, 200]);
+            const containerSize = container._size.get();
+            if (!containerSize) {
+                throw new Error('Zeta: container size is unresolved. Set explicit numeric size or a resolvable % size.');
+            }
+            const width = containerSize.x;
+            const height = containerSize.y;
+            const [padX, padY] = this._normalizePadding(opts.padding ?? 16);
 
-        container.size([width, height]);
+            const frame = new Rect(Vec2.zero(), new Vec2(width, height))
+                .radius(opts.radius ?? 16)
+                .fill(opts.fill ?? 'rgba(255,255,255,0.02)')
+                .stroke(opts.stroke ?? 'rgba(255,255,255,0.1)', opts.strokeWidth ?? 1);
+            container.addChild(frame);
 
-        const frame = new Rect(Vec2.zero(), new Vec2(width, height))
-            .radius(opts.radius ?? 16)
-            .fill(opts.fill ?? 'rgba(255,255,255,0.02)')
-            .stroke(opts.stroke ?? 'rgba(255,255,255,0.1)', opts.strokeWidth ?? 1);
-        container.addChild(frame);
+            const title = opts.title?.trim() ? opts.title.trim() : '';
+            const titleFontSize = opts.titleFontSize ?? 13;
+            const contentOffsetSpec = parseUnitPoint(
+                opts.contentOffset ?? [padX, padY + (title ? titleFontSize + 10 : 0)],
+                'container contentOffset.x',
+                'container contentOffset.y',
+            );
+            const containerRef: UnitReferenceSize = { width, height };
+            const contentOffset: [number, number] = [
+                resolveUnitSpec(contentOffsetSpec[0], 'x', containerRef, 'container contentOffset.x'),
+                resolveUnitSpec(contentOffsetSpec[1], 'y', containerRef, 'container contentOffset.y'),
+            ];
 
-        const title = opts.title?.trim() ? opts.title.trim() : '';
-        const titleFontSize = opts.titleFontSize ?? 13;
-        const contentOffset = opts.contentOffset
-            ?? [padX, padY + (title ? titleFontSize + 10 : 0)];
+            let titleNode: Text | null = null;
+            if (title) {
+                titleNode = new Text(title, new Vec2(padX, padY + titleFontSize))
+                    .fill(opts.titleColor ?? '#9fb6ff')
+                    .fontSize(titleFontSize)
+                    .fontFamily(opts.titleFontFamily ?? "'IBM Plex Sans', 'Inter', sans-serif");
+                container.addChild(titleNode);
+            }
 
-        let titleNode: Text | null = null;
-        if (title) {
-            titleNode = new Text(title, new Vec2(padX, padY + titleFontSize))
-                .fill(opts.titleColor ?? '#9fb6ff')
-                .fontSize(titleFontSize)
-                .fontFamily(opts.titleFontFamily ?? "'IBM Plex Sans', 'Inter', sans-serif");
-            container.addChild(titleNode);
-        }
+            const content = new Group(new Vec2(0, 0));
+            content.pos(contentOffset);
+            content.size([
+                Math.max(0, width - contentOffset[0] - padX),
+                Math.max(0, height - contentOffset[1] - padY),
+            ]);
+            container.addChild(content);
 
-        const content = new Group(new Vec2(contentOffset[0], contentOffset[1]));
-        content.size([
-            Math.max(0, width - contentOffset[0] - padX),
-            Math.max(0, height - contentOffset[1] - padY),
-        ]);
-        container.addChild(content);
+            Object.defineProperties(container, {
+                frame: { value: frame, enumerable: true },
+                content: { value: content, enumerable: true },
+                titleNode: { value: titleNode, enumerable: true },
+            });
 
-        Object.defineProperties(container, {
-            frame: { value: frame, enumerable: true },
-            content: { value: content, enumerable: true },
-            titleNode: { value: titleNode, enumerable: true },
+            return container;
         });
-
-        return container;
     }
 
     row(opts?: RowLayoutOptions): Group;
@@ -382,7 +475,7 @@ export class Group extends SceneNode {
         const resolvedOpts = (Array.isArray(childrenOrOpts) ? opts : childrenOrOpts) ?? {};
         const g = new Group()._setLayoutConfig({
             mode: 'row',
-            gap: Math.max(0, resolvedOpts.gap ?? 0),
+            gap: parseUnitValue(resolvedOpts.gap ?? 0, 'row gap'),
             align: resolvedOpts.align ?? 'center',
         });
         this.addChild(g);
@@ -399,7 +492,7 @@ export class Group extends SceneNode {
         const resolvedOpts = (Array.isArray(childrenOrOpts) ? opts : childrenOrOpts) ?? {};
         const g = new Group()._setLayoutConfig({
             mode: 'column',
-            gap: Math.max(0, resolvedOpts.gap ?? 0),
+            gap: parseUnitValue(resolvedOpts.gap ?? 0, 'column gap'),
             align: resolvedOpts.align ?? 'center',
         });
         this.addChild(g);
@@ -443,7 +536,7 @@ export class Group extends SceneNode {
         const g = new Group()._setLayoutConfig({
             mode: 'stack',
             align: resolvedOpts.align ?? 'center',
-            offset: Vec2.from(resolvedOpts.offset ?? [0, 0]),
+            offset: parseUnitPoint(resolvedOpts.offset ?? [0, 0], 'stack offset.x', 'stack offset.y'),
         });
         this.addChild(g);
         if (children.length > 0) {
@@ -453,151 +546,172 @@ export class Group extends SceneNode {
     }
 
     node(label: string, opts: NodeOptions = {}): Group {
-        const position = opts.at ? this._mapPoint(opts.at) : Vec2.zero();
-        const container = new Group(position);
-        this.addChild(container);
-
-        const fontSize = opts.fontSize ?? 13;
-        const [padX, padY] = this._normalizePadding(opts.padding);
-        const subtitle = opts.subtitle?.trim() ? opts.subtitle.trim() : null;
-        const subtitleFontSize = opts.subtitleFontSize ?? Math.max(10, fontSize - 2);
-        const approxTextWidth = label.length * fontSize * 0.6;
-        const approxSubWidth = subtitle ? subtitle.length * subtitleFontSize * 0.58 : 0;
-        const contentWidth = Math.max(approxTextWidth, approxSubWidth);
-        const approxTextHeight = subtitle ? (fontSize * 1.2 + subtitleFontSize * 1.2 + 4) : (fontSize * 1.2);
-        const minWidth = opts.minSize?.[0] ?? 0;
-        const minHeight = opts.minSize?.[1] ?? 0;
-        const width = opts.size?.[0] ?? Math.max(minWidth, contentWidth + padX * 2);
-        const height = opts.size?.[1] ?? Math.max(minHeight, approxTextHeight + padY * 2);
-
-        const frame = new Rect(Vec2.zero(), new Vec2(width, height))
-            .radius(opts.radius ?? 8)
-            .fill(opts.fill ?? '#fff')
-            .stroke(opts.stroke ?? '#111827', opts.strokeWidth ?? 1.5);
-
-        const textX = (width - approxTextWidth) / 2;
-        const baselineY = subtitle
-            ? (height / 2 - (subtitleFontSize * 0.7)) + fontSize * 0.2
-            : (height / 2 + fontSize * 0.6);
-        const caption = new Text(label, new Vec2(textX, baselineY))
-            .fill(opts.textColor ?? '#111827')
-            .fontSize(fontSize);
-
-        if (opts.fontFamily) {
-            caption.fontFamily(opts.fontFamily);
-        }
-
-        container.add(frame, caption);
-
-        if (subtitle) {
-            const subX = (width - approxSubWidth) / 2;
-            const subY = (height / 2 + subtitleFontSize * 0.95);
-            const sub = new Text(subtitle, new Vec2(subX, subY))
-                .fill(opts.subtitleColor ?? '#6b7280')
-                .fontSize(subtitleFontSize);
-            if (opts.fontFamily) {
-                sub.fontFamily(opts.fontFamily);
+        return this.batch(() => {
+            const container = new Group();
+            this.addChild(container);
+            if (opts.at) {
+                container.pos(this._resolveFactoryPoint(opts.at));
             }
-            container.add(sub);
-        }
 
-        if (opts.ports && opts.ports.length > 0) {
-            const defaultPortRadius = opts.portRadius ?? 4;
-            const defaultPortColor = opts.portColor ?? '#ffffff';
-            const strokeColor = opts.stroke ?? '#111827';
+            const fontSize = opts.fontSize ?? 13;
+            const [padX, padY] = this._normalizePadding(opts.padding);
+            const subtitle = opts.subtitle?.trim() ? opts.subtitle.trim() : null;
+            const subtitleFontSize = opts.subtitleFontSize ?? Math.max(10, fontSize - 2);
+            const approxTextWidth = label.length * fontSize * 0.6;
+            const approxSubWidth = subtitle ? subtitle.length * subtitleFontSize * 0.58 : 0;
+            const contentWidth = Math.max(approxTextWidth, approxSubWidth);
+            const approxTextHeight = subtitle ? (fontSize * 1.2 + subtitleFontSize * 1.2 + 4) : (fontSize * 1.2);
+            const minSizeSpec = opts.minSize
+                ? parseUnitSize(opts.minSize, 'node minSize.width', 'node minSize.height')
+                : null;
+            const minWidth = minSizeSpec
+                ? this._resolveChildRelativeUnit(minSizeSpec[0], 'x', 'node minSize.width')
+                : 0;
+            const minHeight = minSizeSpec
+                ? this._resolveChildRelativeUnit(minSizeSpec[1], 'y', 'node minSize.height')
+                : 0;
 
-            opts.ports.forEach((port, idx) => {
-                const spec = typeof port === 'string'
-                    ? { name: port, side: (idx % 2 === 0 ? 'left' : 'right') as NodePortSide }
-                    : port;
-                const side = spec.side ?? 'left';
-                const radius = spec.radius ?? defaultPortRadius;
-                const portNode = new Circle(Vec2.zero(), radius)
-                    .fill(spec.color ?? defaultPortColor)
-                    .stroke(strokeColor, 1.2);
+            const sizeSpec = opts.size
+                ? parseUnitSize(opts.size, 'node size.width', 'node size.height')
+                : null;
+            const width = sizeSpec
+                ? this._resolveChildRelativeUnit(sizeSpec[0], 'x', 'node size.width')
+                : Math.max(minWidth, contentWidth + padX * 2);
+            const height = sizeSpec
+                ? this._resolveChildRelativeUnit(sizeSpec[1], 'y', 'node size.height')
+                : Math.max(minHeight, approxTextHeight + padY * 2);
 
-                const offset = spec.offset ?? 0;
-                const anchor = this._portSideToAnchor(side);
-                const pinOffset: [number, number] = (side === 'left' || side === 'right')
-                    ? [0, offset]
-                    : [offset, 0];
-                portNode.pin(frame, anchor, { offset: pinOffset });
-                container.add(portNode);
-            });
-        }
-        return container;
+            const frame = new Rect(Vec2.zero(), new Vec2(width, height))
+                .radius(opts.radius ?? 8)
+                .fill(opts.fill ?? '#fff')
+                .stroke(opts.stroke ?? '#111827', opts.strokeWidth ?? 1.5);
+
+            const textX = (width - approxTextWidth) / 2;
+            const baselineY = subtitle
+                ? (height / 2 - (subtitleFontSize * 0.7)) + fontSize * 0.2
+                : (height / 2 + fontSize * 0.6);
+            const caption = new Text(label, new Vec2(textX, baselineY))
+                .fill(opts.textColor ?? '#111827')
+                .fontSize(fontSize);
+
+            if (opts.fontFamily) {
+                caption.fontFamily(opts.fontFamily);
+            }
+
+            container.add(frame, caption);
+
+            if (subtitle) {
+                const subX = (width - approxSubWidth) / 2;
+                const subY = (height / 2 + subtitleFontSize * 0.95);
+                const sub = new Text(subtitle, new Vec2(subX, subY))
+                    .fill(opts.subtitleColor ?? '#6b7280')
+                    .fontSize(subtitleFontSize);
+                if (opts.fontFamily) {
+                    sub.fontFamily(opts.fontFamily);
+                }
+                container.add(sub);
+            }
+
+            if (opts.ports && opts.ports.length > 0) {
+                const defaultPortRadius = opts.portRadius ?? 4;
+                const defaultPortColor = opts.portColor ?? '#ffffff';
+                const strokeColor = opts.stroke ?? '#111827';
+
+                opts.ports.forEach((port, idx) => {
+                    const spec = typeof port === 'string'
+                        ? { name: port, side: (idx % 2 === 0 ? 'left' : 'right') as NodePortSide }
+                        : port;
+                    const side = spec.side ?? 'left';
+                    const radius = spec.radius ?? defaultPortRadius;
+                    const portNode = new Circle(Vec2.zero(), radius)
+                        .fill(spec.color ?? defaultPortColor)
+                        .stroke(strokeColor, 1.2);
+
+                    const offset = spec.offset ?? 0;
+                    const anchor = this._portSideToAnchor(side);
+                    const pinOffset: [number, number] = (side === 'left' || side === 'right')
+                        ? [0, this._resolveChildRelativeValue(offset, 'y', 'node port offset')]
+                        : [this._resolveChildRelativeValue(offset, 'x', 'node port offset'), 0];
+                    portNode.pin(frame, anchor, { offset: pinOffset });
+                    container.add(portNode);
+                });
+            }
+            return container;
+        });
     }
 
     axes(opts: AxisOptions = {}): this {
-        const size = this._size.get() ?? this.computeLocalBBox().size;
-        if (size.x <= 0 || size.y <= 0) return this;
+        return this.batch(() => {
+            const size = this._size.get() ?? this.computeLocalBBox().size;
+            if (size.x <= 0 || size.y <= 0) return this;
 
-        const color = opts.color ?? '#666';
-        const labelColor = opts.labelColor ?? '#777';
-        const tickCount = Math.max(2, opts.tickCount ?? 5);
-        const fontSize = opts.fontSize ?? 11;
+            const color = opts.color ?? '#666';
+            const labelColor = opts.labelColor ?? '#777';
+            const tickCount = Math.max(2, opts.tickCount ?? 5);
+            const fontSize = opts.fontSize ?? 11;
 
-        const axisY = size.y;
-        const axisX = 0;
+            const axisY = size.y;
+            const axisX = 0;
 
-        const xAxis = new Line(new Vec2(0, axisY), new Vec2(size.x, axisY)).stroke(color, 1);
-        const yAxis = new Line(new Vec2(axisX, 0), new Vec2(axisX, size.y)).stroke(color, 1);
-        this.addChild(xAxis);
-        this.addChild(yAxis);
+            const xAxis = new Line(new Vec2(0, axisY), new Vec2(size.x, axisY)).stroke(color, 1);
+            const yAxis = new Line(new Vec2(axisX, 0), new Vec2(axisX, size.y)).stroke(color, 1);
+            this.addChild(xAxis);
+            this.addChild(yAxis);
 
-        const xTicks = this._axisTicks(this._coords?.x, tickCount);
-        for (const tick of xTicks) {
-            const x = this._coords
-                ? this._mapAxisValue(tick, this._coords.x, 0, size.x, false)
-                : ((tick - xTicks[0]) / (xTicks[xTicks.length - 1] - xTicks[0] || 1)) * size.x;
-            const t = new Line(new Vec2(x, axisY), new Vec2(x, axisY + 5)).stroke(color, 1);
-            this.addChild(t);
+            const xTicks = this._axisTicks(this._coords?.x, tickCount);
+            for (const tick of xTicks) {
+                const x = this._coords
+                    ? this._mapAxisValue(tick, this._coords.x, 0, size.x, false)
+                    : ((tick - xTicks[0]) / (xTicks[xTicks.length - 1] - xTicks[0] || 1)) * size.x;
+                const t = new Line(new Vec2(x, axisY), new Vec2(x, axisY + 5)).stroke(color, 1);
+                this.addChild(t);
 
-            if (opts.grid && x > 0 && x < size.x) {
-                const g = new Line(new Vec2(x, 0), new Vec2(x, size.y)).stroke('#d8d8d8', 1);
-                this.addChild(g);
+                if (opts.grid && x > 0 && x < size.x) {
+                    const g = new Line(new Vec2(x, 0), new Vec2(x, size.y)).stroke('#d8d8d8', 1);
+                    this.addChild(g);
+                }
+
+                const label = new Text(this._formatTick(tick), new Vec2(x - 8, axisY + 18))
+                    .fill(labelColor)
+                    .fontSize(fontSize);
+                this.addChild(label);
             }
 
-            const label = new Text(this._formatTick(tick), new Vec2(x - 8, axisY + 18))
-                .fill(labelColor)
-                .fontSize(fontSize);
-            this.addChild(label);
-        }
+            const yTicks = this._axisTicks(this._coords?.y, tickCount);
+            for (const tick of yTicks) {
+                const y = this._coords
+                    ? this._mapAxisValue(tick, this._coords.y, 0, size.y, true)
+                    : size.y - ((tick - yTicks[0]) / (yTicks[yTicks.length - 1] - yTicks[0] || 1)) * size.y;
+                const t = new Line(new Vec2(axisX - 5, y), new Vec2(axisX, y)).stroke(color, 1);
+                this.addChild(t);
 
-        const yTicks = this._axisTicks(this._coords?.y, tickCount);
-        for (const tick of yTicks) {
-            const y = this._coords
-                ? this._mapAxisValue(tick, this._coords.y, 0, size.y, true)
-                : size.y - ((tick - yTicks[0]) / (yTicks[yTicks.length - 1] - yTicks[0] || 1)) * size.y;
-            const t = new Line(new Vec2(axisX - 5, y), new Vec2(axisX, y)).stroke(color, 1);
-            this.addChild(t);
+                if (opts.grid && y > 0 && y < size.y) {
+                    const g = new Line(new Vec2(0, y), new Vec2(size.x, y)).stroke('#d8d8d8', 1);
+                    this.addChild(g);
+                }
 
-            if (opts.grid && y > 0 && y < size.y) {
-                const g = new Line(new Vec2(0, y), new Vec2(size.x, y)).stroke('#d8d8d8', 1);
-                this.addChild(g);
+                const label = new Text(this._formatTick(tick), new Vec2(axisX - 36, y + 4))
+                    .fill(labelColor)
+                    .fontSize(fontSize);
+                this.addChild(label);
             }
 
-            const label = new Text(this._formatTick(tick), new Vec2(axisX - 36, y + 4))
-                .fill(labelColor)
-                .fontSize(fontSize);
-            this.addChild(label);
-        }
+            if (opts.xLabel) {
+                const label = new Text(opts.xLabel, new Vec2(size.x / 2 - opts.xLabel.length * 3, size.y + 34))
+                    .fill(labelColor)
+                    .fontSize(fontSize + 1);
+                this.addChild(label);
+            }
+            if (opts.yLabel) {
+                const label = new Text(opts.yLabel, new Vec2(-56, size.y / 2 + opts.yLabel.length * 3))
+                    .fill(labelColor)
+                    .fontSize(fontSize + 1)
+                    .rotateTo(-Math.PI / 2);
+                this.addChild(label);
+            }
 
-        if (opts.xLabel) {
-            const label = new Text(opts.xLabel, new Vec2(size.x / 2 - opts.xLabel.length * 3, size.y + 34))
-                .fill(labelColor)
-                .fontSize(fontSize + 1);
-            this.addChild(label);
-        }
-        if (opts.yLabel) {
-            const label = new Text(opts.yLabel, new Vec2(-56, size.y / 2 + opts.yLabel.length * 3))
-                .fill(labelColor)
-                .fontSize(fontSize + 1)
-                .rotateTo(-Math.PI / 2);
-            this.addChild(label);
-        }
-
-        return this;
+            return this;
+        });
     }
 
     func(fn: (x: number) => number, opts: FunctionPlotOptions = {}): Path {
@@ -634,25 +748,34 @@ export class Group extends SceneNode {
 
     /** Add one or more children. */
     add(...nodes: SceneNode[]): this {
-        for (const node of nodes) {
-            this.addChild(node);
-        }
+        this.batch(() => {
+            for (const node of nodes) {
+                this.addChild(node);
+            }
+        });
         return this;
     }
 
     private _setLayoutConfig(config: LayoutConfig): this {
         this._layoutConfig = config;
         this._syncLayoutSubscriptions();
-        this._applyAutoLayout();
+        this._requestAutoLayout();
         return this;
     }
 
-    private _normalizeGap(gap?: number | [number, number]): [number, number] {
+    private _normalizeGap(gap?: UnitValue | UnitPoint): [UnitSpec, UnitSpec] {
         if (Array.isArray(gap)) {
-            return [Math.max(0, gap[0] ?? 0), Math.max(0, gap[1] ?? 0)];
+            return parseUnitPoint(
+                [gap[0] ?? 0, gap[1] ?? 0],
+                'grid gap.x',
+                'grid gap.y',
+            );
         }
-        const g = Math.max(0, gap ?? 0);
-        return [g, g];
+        const g = gap ?? 0;
+        return [
+            parseUnitValue(g, 'grid gap.x'),
+            parseUnitValue(g, 'grid gap.y'),
+        ];
     }
 
     private _normalizePadding(padding?: number | [number, number]): [number, number] {
@@ -661,6 +784,30 @@ export class Group extends SceneNode {
         }
         const p = Math.max(0, padding ?? 14);
         return [p, p];
+    }
+
+    private _resolveChildRelativeUnit(spec: UnitSpec, axis: 'x' | 'y', context: string): number {
+        return resolveUnitSpec(spec, axis, this._getUnitReferenceSizeForChildren(), context);
+    }
+
+    private _resolveChildRelativeValue(value: UnitValue, axis: 'x' | 'y', context: string): number {
+        return this._resolveChildRelativeUnit(parseUnitValue(value, context), axis, context);
+    }
+
+    private _resolveFactoryPoint(point: UnitPoint | [number, number, number]): UnitPoint {
+        if (point.length === 3) {
+            const mapped = this._mapPoint(point);
+            return [mapped.x, mapped.y];
+        }
+
+        const x = point[0];
+        const y = point[1];
+        if (typeof x === 'string' || typeof y === 'string') {
+            return [x as UnitValue, y as UnitValue];
+        }
+
+        const mapped = this._mapPoint([x, y]);
+        return [mapped.x, mapped.y];
     }
 
     private _portSideToAnchor(side: NodePortSide): AnchorName {
@@ -682,7 +829,7 @@ export class Group extends SceneNode {
 
         const unsubscribe = child.watchLayout(() => {
             if (this._isApplyingLayout) return;
-            this._applyAutoLayout();
+            this._requestAutoLayout();
         });
         this._layoutSubscriptions.set(child, unsubscribe);
     }
@@ -715,25 +862,62 @@ export class Group extends SceneNode {
         }
     }
 
+    private _requestAutoLayout(): void {
+        if (!this._layoutConfig) return;
+        if (this._layoutQueued) return;
+
+        this._layoutQueued = true;
+        queueMutationEffect(() => {
+            this._layoutQueued = false;
+            this._applyAutoLayout();
+        }, 'high');
+        if (!isBatchingSceneMutations()) {
+            flushMutationEffects();
+        }
+    }
+
     private _applyAutoLayout(): void {
         if (!this._layoutConfig) return;
         if (this._isApplyingLayout) return;
         if (this.children.length === 0) return;
 
+        if (this._layoutNeedsExplicitSize(this._layoutConfig) && !this._size.get()) {
+            throw new Error(
+                'Zeta: Layout uses percentage gap/offset but this layout group has no explicit size. ' +
+                'Set group.size(...) or use pixel units.',
+            );
+        }
+
         this._isApplyingLayout = true;
         try {
             switch (this._layoutConfig.mode) {
                 case 'row':
-                    this._applyRowLayout(this._layoutConfig.gap, this._layoutConfig.align);
+                    this._applyRowLayout(
+                        this._resolveLayoutUnit(this._layoutConfig.gap, 'x', 'row gap'),
+                        this._layoutConfig.align,
+                    );
                     break;
                 case 'column':
-                    this._applyColumnLayout(this._layoutConfig.gap, this._layoutConfig.align);
+                    this._applyColumnLayout(
+                        this._resolveLayoutUnit(this._layoutConfig.gap, 'y', 'column gap'),
+                        this._layoutConfig.align,
+                    );
                     break;
                 case 'grid':
-                    this._applyGridLayout(this._layoutConfig);
+                    this._applyGridLayout({
+                        ...this._layoutConfig,
+                        gapX: this._resolveLayoutUnit(this._layoutConfig.gapX, 'x', 'grid gap.x'),
+                        gapY: this._resolveLayoutUnit(this._layoutConfig.gapY, 'y', 'grid gap.y'),
+                    });
                     break;
                 case 'stack':
-                    this._applyStackLayout(this._layoutConfig.align, this._layoutConfig.offset);
+                    this._applyStackLayout(
+                        this._layoutConfig.align,
+                        new Vec2(
+                            this._resolveLayoutUnit(this._layoutConfig.offset[0], 'x', 'stack offset.x'),
+                            this._resolveLayoutUnit(this._layoutConfig.offset[1], 'y', 'stack offset.y'),
+                        ),
+                    );
                     break;
             }
         } finally {
@@ -780,7 +964,17 @@ export class Group extends SceneNode {
         }
     }
 
-    private _applyGridLayout(config: Extract<LayoutConfig, { mode: 'grid' }>): void {
+    private _applyGridLayout(
+        config: {
+            mode: 'grid';
+            columns: number | null;
+            rows: number | null;
+            gapX: number;
+            gapY: number;
+            alignX: LayoutAlignX;
+            alignY: LayoutAlignY;
+        },
+    ): void {
         const metrics = this._collectLayoutMetrics();
         const { columns, rows } = this._resolveGridDimensions(metrics.length, config.columns, config.rows);
 
@@ -840,6 +1034,26 @@ export class Group extends SceneNode {
             const minY = this._alignOffsetY(vertical, height, metric.height) + offset.y * i;
             metric.node.pos(minX - metric.bbox.minX, minY - metric.bbox.minY);
         }
+    }
+
+    private _layoutNeedsExplicitSize(config: LayoutConfig): boolean {
+        switch (config.mode) {
+            case 'row':
+            case 'column':
+                return isRelativeUnit(config.gap);
+            case 'grid':
+                return isRelativeUnit(config.gapX) || isRelativeUnit(config.gapY);
+            case 'stack':
+                return hasRelativeUnits(config.offset);
+        }
+    }
+
+    private _resolveLayoutUnit(spec: UnitSpec, axis: 'x' | 'y', context: string): number {
+        const current = this._size.get();
+        const reference = current
+            ? { width: current.x, height: current.y }
+            : null;
+        return resolveUnitSpec(spec, axis, reference, context);
     }
 
     private _alignOffsetX(align: LayoutAlignX, container: number, item: number): number {

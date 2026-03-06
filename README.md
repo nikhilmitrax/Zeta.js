@@ -23,9 +23,9 @@ import Z from 'zeta.js';
 
 const z = new Z.Canvas('#figure', { renderer: 'svg', responsive: true });
 
-const a = z.node('Start', { at: [120, 180], subtitle: 'drag me' }).dragWithin();
-const b = z.node('Process', { at: [420, 180], subtitle: 'drag me' }).dragWithin();
-const c = z.node('Done', { at: [720, 180], subtitle: 'drag me' }).dragWithin();
+const a = z.node('Start', { at: ['12%', '33%'], size: ['16%', '13%'], subtitle: 'drag me' }).dragWithin();
+const b = z.node('Process', { at: ['42%', '33%'], size: ['18%', '13%'], subtitle: 'drag me' }).dragWithin();
+const c = z.node('Done', { at: ['77%', '33%'], size: ['15%', '13%'], subtitle: 'drag me' }).dragWithin();
 
 z.edge(a, b, { route: 'step', routeOptions: { radius: 8 } });
 z.edge(b, c, { route: 'orthogonal', routeOptions: { radius: 8, avoidObstacles: true } });
@@ -33,6 +33,8 @@ z.edge(b, c, { route: 'orthogonal', routeOptions: { radius: 8, avoidObstacles: t
 z.text('Zeta.js v0.1 alpha', [24, 32]).fontSize(14).fill('#334155');
 z.flush();
 ```
+
+Demo convention: use `%` units for component `at`/`size`; keep pixel values for fine-grained primitive geometry.
 
 ## What works today
 
@@ -46,6 +48,10 @@ z.flush();
   - Orthogonal obstacle-aware routing via grid + A* path search
 - Relative positioning and constraints:
   - `rightOf`, `leftOf`, `above`, `below`, `pin`, `at`
+- Unit-based layout coordinates and sizing:
+  - `number` = pixels, or string units like `'24px'` and `'35%'`
+  - `%` resolves against the parent container size (root uses canvas size)
+  - Layout `%` gaps/offsets require explicit container size (`group.size(...)`)
 - Layout helpers:
   - `row`, `column`, `grid`, `stack`, `container`, `node`
 - Group contexts:

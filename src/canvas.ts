@@ -23,6 +23,7 @@ import type {
 import { Canvas2DRenderer } from './renderers/canvas2d';
 import { SVGRenderer } from './renderers/svg';
 import type { Renderer } from './renderers/renderer';
+import type { UnitPoint, UnitSize, UnitValue } from './core/units';
 import { Rect } from './shapes/rect';
 import { Circle } from './shapes/circle';
 import { Path } from './shapes/path';
@@ -145,6 +146,7 @@ export class ZCanvas {
 
         // Create scene
         this._scene = new Scene();
+        this._scene.size([width, height]);
         this._scene.setRenderer(this._renderer);
         this._attachPointerDelegation();
 
@@ -154,6 +156,7 @@ export class ZCanvas {
                 for (const entry of entries) {
                     const { width: w, height: h } = entry.contentRect;
                     this._renderer.resize(w, h);
+                    this._scene.size([w, h]);
                     this._scene.flush();
                 }
             });
@@ -171,9 +174,11 @@ export class ZCanvas {
      * @param pos - Position as [x, y]
      * @param size - Size as [w, h]
      */
-    rect(pos: [number, number], size: [number, number]): Rect {
-        const node = new Rect(Vec2.from(pos), Vec2.from(size));
+    rect(pos: UnitPoint, size: UnitSize): Rect {
+        const node = new Rect(Vec2.zero(), new Vec2(0, 0));
         this._scene.addChild(node);
+        node.pos(pos);
+        node.size(size);
         return node;
     }
 
@@ -182,16 +187,19 @@ export class ZCanvas {
      * @param centerOrRadius - Center as [x, y], or just a radius number
      * @param radius - Radius in pixels (when center is provided)
      */
-    circle(radius: number): Circle;
-    circle(center: [number, number], radius: number): Circle;
-    circle(centerOrRadius: [number, number] | number, radius?: number): Circle {
-        if (typeof centerOrRadius === 'number') {
-            const node = new Circle(Vec2.zero(), centerOrRadius);
+    circle(radius: UnitValue): Circle;
+    circle(center: UnitPoint, radius: UnitValue): Circle;
+    circle(centerOrRadius: UnitPoint | UnitValue, radius?: UnitValue): Circle {
+        if (typeof centerOrRadius === 'number' || typeof centerOrRadius === 'string') {
+            const node = new Circle(Vec2.zero(), 0);
             this._scene.addChild(node);
+            node.setRadius(centerOrRadius);
             return node;
         }
-        const node = new Circle(Vec2.from(centerOrRadius), radius!);
+        const node = new Circle(Vec2.zero(), 0);
         this._scene.addChild(node);
+        node.pos(centerOrRadius);
+        node.setRadius(radius!);
         return node;
     }
 
@@ -200,9 +208,12 @@ export class ZCanvas {
      * @param content - Text string
      * @param pos - Optional position as [x, y]
      */
-    text(content: string, pos?: [number, number]): Text {
-        const node = new Text(content, pos ? Vec2.from(pos) : Vec2.zero());
+    text(content: string, pos?: UnitPoint | [number, number, number]): Text {
+        const node = new Text(content, Vec2.zero());
         this._scene.addChild(node);
+        if (pos) {
+            node.pos(pos.length === 3 ? [pos[0], pos[1]] : pos);
+        }
         return node;
     }
 
@@ -212,9 +223,12 @@ export class ZCanvas {
      * @param pos - Optional position as [x, y]
      * @param opts - LaTeX rendering options
      */
-    tex(expression: string, pos?: [number, number], opts: LatexTextOptions = {}): Text {
-        const node = new Text(expression, pos ? Vec2.from(pos) : Vec2.zero()).latex(expression, opts);
+    tex(expression: string, pos?: UnitPoint | [number, number, number], opts: LatexTextOptions = {}): Text {
+        const node = new Text(expression, Vec2.zero()).latex(expression, opts);
         this._scene.addChild(node);
+        if (pos) {
+            node.pos(pos.length === 3 ? [pos[0], pos[1]] : pos);
+        }
         return node;
     }
 
@@ -222,9 +236,12 @@ export class ZCanvas {
      * Create an empty path.
      * @param pos - Optional starting position
      */
-    path(pos?: [number, number]): Path {
-        const node = new Path(pos ? Vec2.from(pos) : Vec2.zero());
+    path(pos?: UnitPoint): Path {
+        const node = new Path(Vec2.zero());
         this._scene.addChild(node);
+        if (pos) {
+            node.pos(pos);
+        }
         return node;
     }
 
@@ -233,9 +250,10 @@ export class ZCanvas {
      * @param from - Start point as [x, y]
      * @param to - End point as [x, y]
      */
-    line(from: [number, number], to: [number, number]): Line {
-        const node = new Line(Vec2.from(from), Vec2.from(to));
+    line(from: UnitPoint, to: UnitPoint): Line {
+        const node = new Line(Vec2.zero(), Vec2.zero());
         this._scene.addChild(node);
+        node.from(from).to(to);
         return node;
     }
 
@@ -702,6 +720,11 @@ export class ZCanvas {
     /** Force a synchronous render. */
     flush(): void {
         this._scene.flush();
+    }
+
+    /** Batch multiple scene mutations into one layout/constraint settlement pass. */
+    batch<T>(fn: () => T): T {
+        return this._scene.batch(fn);
     }
 
     /** Run a function on every animation frame. */

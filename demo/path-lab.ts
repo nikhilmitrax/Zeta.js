@@ -1,5 +1,5 @@
 import type { RendererType } from '../src/canvas';
-import { caption, createCanvas, mountRendererDemo, title } from './demo-kit';
+import { caption, createCanvas, mountRendererDemo, rel, title } from './demo-kit';
 
 const WIDTH = 980;
 const HEIGHT = 640;
@@ -24,7 +24,7 @@ function createDemo(renderer: RendererType) {
         .dashed([10, 6]);
 
     z.text('wave = cubic + quad chain')
-        .at([56, 224])
+        .at([rel(56, WIDTH), rel(224, HEIGHT)])
         .fill('#7dd3fc')
         .fontSize(11)
         .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace");
@@ -43,7 +43,7 @@ function createDemo(renderer: RendererType) {
         .stroke('#818cf8', 2);
 
     z.text('PATH SEGMENT')
-        .at([126, 314])
+        .at([rel(126, WIDTH), rel(314, HEIGHT)])
         .fill('#ddd6fe')
         .fontSize(14)
         .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace");
@@ -77,7 +77,7 @@ function createDemo(renderer: RendererType) {
         .stroke('#92400e', 1);
 
     const probeLabel = z.text('theta: 0deg')
-        .at([34, 94])
+        .at([rel(34, WIDTH), rel(94, HEIGHT)])
         .fill('#fcd34d')
         .fontSize(11)
         .fontFamily("'IBM Plex Mono', 'JetBrains Mono', monospace");

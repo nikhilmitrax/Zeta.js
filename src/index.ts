@@ -52,6 +52,11 @@ export {
 } from './core/style';
 export { AnchorMap, type AnchorName } from './core/anchor';
 export {
+    type UnitValue,
+    type UnitPoint,
+    type UnitSize,
+} from './core/units';
+export {
     PositionConstraint,
     PinConstraint,
     type AlignOption,

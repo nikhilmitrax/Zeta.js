@@ -3,6 +3,7 @@
 import { Group } from './group';
 import type { NodeType } from './node';
 import type { Renderer } from '../renderers/renderer';
+import { flushMutationEffects } from './mutation';
 
 export class Scene extends Group {
     readonly type: NodeType = 'scene';
@@ -28,6 +29,7 @@ export class Scene extends Group {
     /** Force a synchronous render. */
     render(): void {
         if (!this._renderer) return;
+        flushMutationEffects();
         this._renderer.clear();
         this._renderer.renderNode(this);
         this._needsRender = false;
@@ -54,6 +56,7 @@ export class Scene extends Group {
             cancelAnimationFrame(this._rafId);
             this._rafId = null;
         }
+        flushMutationEffects();
         if (this._needsRender) {
             this.render();
         }

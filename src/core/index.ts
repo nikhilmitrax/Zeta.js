@@ -43,6 +43,11 @@ export {
 export { Scene } from './scene';
 export { AnchorMap, type AnchorName } from './anchor';
 export {
+    type UnitValue,
+    type UnitPoint,
+    type UnitSize,
+} from './units';
+export {
     PositionConstraint,
     PinConstraint,
     type AlignOption,

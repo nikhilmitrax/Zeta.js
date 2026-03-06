@@ -1,5 +1,5 @@
 import type { RendererType } from '../src/canvas';
-import { caption, createCanvas, mountRendererDemo, title } from './demo-kit';
+import { caption, createCanvas, mountRendererDemo, rel, title } from './demo-kit';
 
 const WIDTH = 760;
 const HEIGHT = 860;
@@ -68,36 +68,36 @@ function createDemo(renderer: RendererType) {
 
     const output = z.node('Linear', {
         ...boxStyle('output projection', PALETTE.amber),
-        at: [420, 120],
-        size: [176, 66],
+        at: [rel(420, WIDTH), rel(120, HEIGHT)],
+        size: [rel(176, WIDTH), rel(66, HEIGHT)],
     });
 
     const concat = z.node('Concat', {
         ...boxStyle('heads merged', PALETTE.pink),
-        size: [176, 64],
+        size: [rel(176, WIDTH), rel(64, HEIGHT)],
     }).follow(output, 'below', { gap: 26, align: 'center' });
 
     const attention = z.node('Scaled Dot-Product', {
         ...boxStyle('attention', PALETTE.blue),
-        size: [232, 78],
+        size: [rel(232, WIDTH), rel(78, HEIGHT)],
         fontSize: 12,
     }).follow(concat, 'below', { gap: 34, align: 'center' });
 
     const linearV = z.node('Linear V', {
         ...boxStyle('', PALETTE.green),
-        size: [116, 58],
+        size: [rel(116, WIDTH), rel(58, HEIGHT)],
         fontSize: 12,
     });
 
     const linearK = z.node('Linear K', {
         ...boxStyle('', PALETTE.green),
-        size: [116, 58],
+        size: [rel(116, WIDTH), rel(58, HEIGHT)],
         fontSize: 12,
     });
 
     const linearQ = z.node('Linear Q', {
         ...boxStyle('', PALETTE.green),
-        size: [116, 58],
+        size: [rel(116, WIDTH), rel(58, HEIGHT)],
         fontSize: 12,
     });
 
@@ -106,19 +106,19 @@ function createDemo(renderer: RendererType) {
 
     const inV = z.node('V', {
         ...boxStyle('input', PALETTE.slate),
-        size: [84, 46],
+        size: [rel(84, WIDTH), rel(46, HEIGHT)],
         fontSize: 12,
     });
 
     const inK = z.node('K', {
         ...boxStyle('input', PALETTE.slate),
-        size: [84, 46],
+        size: [rel(84, WIDTH), rel(46, HEIGHT)],
         fontSize: 12,
     });
 
     const inQ = z.node('Q', {
         ...boxStyle('input', PALETTE.slate),
-        size: [84, 46],
+        size: [rel(84, WIDTH), rel(46, HEIGHT)],
         fontSize: 12,
     });
 
@@ -217,25 +217,25 @@ function createDemo(renderer: RendererType) {
 
     const step1 = z.node('MatMul', {
         ...boxStyle('', PALETTE.slate),
-        size: [118, 34],
+        size: [rel(118, WIDTH), rel(34, HEIGHT)],
         fontSize: 11,
     });
 
     const step2 = z.node('SoftMax', {
         ...boxStyle('', PALETTE.slate),
-        size: [118, 34],
+        size: [rel(118, WIDTH), rel(34, HEIGHT)],
         fontSize: 11,
     });
 
     const step3 = z.node('Scale', {
         ...boxStyle('', PALETTE.slate),
-        size: [118, 34],
+        size: [rel(118, WIDTH), rel(34, HEIGHT)],
         fontSize: 11,
     });
 
     const step4 = z.node('MatMul', {
         ...boxStyle('', PALETTE.slate),
-        size: [118, 34],
+        size: [rel(118, WIDTH), rel(34, HEIGHT)],
         fontSize: 11,
     });
 

@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Quality checks
+        run: npm run check
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release branch
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save built artifacts to a temp location
+          cp -r dist /tmp/zeta-dist
+          cp package.json /tmp/zeta-package.json
+          cp README.md /tmp/zeta-readme.md
+          cp LICENSE /tmp/zeta-license
+
+          # Fetch or create the release branch
+          git fetch origin release:release 2>/dev/null || git checkout --orphan release
+
+          # Switch to release branch
+          git checkout release 2>/dev/null || git checkout --orphan release
+
+          # Clean working tree
+          git rm -rf . 2>/dev/null || true
+          rm -rf *
+
+          # Copy in only the files consumers need
+          cp -r /tmp/zeta-dist dist
+          cp /tmp/zeta-package.json package.json
+          cp /tmp/zeta-readme.md README.md
+          cp /tmp/zeta-license LICENSE
+
+          # Commit and tag
+          git add -A
+          git commit -m "Release ${{ steps.version.outputs.VERSION }}" --allow-empty
+          git tag "dist-${{ steps.version.outputs.VERSION }}"
+
+          # Push branch and tag
+          git push origin release --force
+          git push origin "dist-${{ steps.version.outputs.VERSION }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          tag_name: ${{ steps.version.outputs.VERSION }}

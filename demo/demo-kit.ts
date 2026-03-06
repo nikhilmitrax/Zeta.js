@@ -3,6 +3,7 @@ import type { RendererType } from '../src/canvas';
 import { mountDemoShell } from './demo-shell';
 
 export type ZCanvas = InstanceType<typeof Z.Canvas>;
+export type PercentUnit = `${number}%`;
 
 export interface DemoHandle {
     canvas: ZCanvas;
@@ -12,6 +13,13 @@ export interface DemoHandle {
 export interface CreateCanvasOptions {
     background?: string;
     theme?: string;
+}
+
+export function rel(value: number, total: number): PercentUnit {
+    if (!Number.isFinite(value) || !Number.isFinite(total) || total === 0) {
+        throw new Error('rel(value, total) expects finite numbers with a non-zero total.');
+    }
+    return `${(value / total) * 100}%`;
 }
 
 export function createCanvas(
