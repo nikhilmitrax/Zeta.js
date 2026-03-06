@@ -10,7 +10,25 @@ Declarative, reactive drawing engine for diagrams and scientific visuals on the 
 
 `v0.1.0` is an alpha release focused on a stable core API, typed plugin extension points, and demo coverage.
 
-## Install
+## Usage
+
+### Via CDN (jsDelivr)
+
+You can include Zeta.js directly in your HTML using the latest release from jsDelivr. We use a GitHub-based CDN delivery, so the URLs point to the `dist` tag for the specific version:
+
+```html
+<!-- ESM module -->
+<script type="module">
+  import Z from 'https://cdn.jsdelivr.net/gh/nikhilmitrax/Zeta.js@dist-v0.1.1/dist/index.js';
+  
+  const z = new Z.Canvas('#figure', { renderer: 'svg', responsive: true });
+  // ...
+</script>
+```
+
+*Note: Replace `v0.1.1` with the [latest release version](https://github.com/nikhilmitrax/Zeta.js/releases).*
+
+### Via npm
 
 ```bash
 npm install zeta.js
@@ -87,6 +105,19 @@ npm run build
 npm run build:demo
 npm_config_cache=/tmp/zeta-npm-cache npm pack --dry-run
 ```
+
+### Release Process
+
+Releases are fully automated via GitHub Actions, without relying on the npm registry for CDN delivery. To cut a new release:
+
+```bash
+# Bump version, tag, and push (choose one)
+make release-patch
+make release-minor
+make release-major
+```
+
+This updates `package.json`, creates a git tag, and pushes to GitHub. The CI workflow will automatically build the `dist/` artifacts, push them to a target `dist-*` tag on the `release` branch (which jsDelivr reads from), and generate a GitHub Release.
 
 ## Demo
 
