@@ -196,7 +196,18 @@ export class SVGRenderer implements Renderer {
         }
 
         this._applyStyle(el, text);
+        this._measureText(text, el);
         return el;
+    }
+
+    private _measureText(text: Text, el: SVGElement): void {
+        if (el.tagName.toLowerCase() !== 'text') return;
+        const clone = el.cloneNode(true) as SVGTextElement;
+        clone.setAttribute('visibility', 'hidden');
+        clone.setAttribute('aria-hidden', 'true');
+        this.svg.appendChild(clone);
+        text.measureWithSVGTextElement(clone);
+        this.svg.removeChild(clone);
     }
 
     private _createLine(line: Line): SVGElement {

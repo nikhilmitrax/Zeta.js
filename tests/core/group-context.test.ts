@@ -242,6 +242,245 @@ describe('Group contexts', () => {
         expect(world.minY).toBe(36);
     });
 
+    it('panel helper aliases container creation', () => {
+        const root = new Group();
+        const panel = root.panel({
+            at: [12, 18],
+            size: [160, 90],
+            padding: 10,
+            title: 'Controls',
+        });
+
+        expect(panel._position.get().x).toBe(12);
+        expect(panel._position.get().y).toBe(18);
+        expect(panel.children).toContain(panel.frame);
+        expect(panel.children).toContain(panel.content);
+        expect(panel.titleNode?.getContent()).toBe('Controls');
+        expect(panel.frame.getSize().x).toBe(160);
+        expect(panel.frame.getSize().y).toBe(90);
+    });
+
+    it('fitContent sizes a group around child geometry with padding and minSize', () => {
+        const root = new Group();
+        const host = root.group();
+        const child = host.rect([0, 0], [20, 12]);
+
+        host.fitContent({ padding: [4, 3], minSize: [36, 10] });
+
+        expect(host.getSize().x).toBe(36);
+        expect(host.getSize().y).toBe(18);
+
+        child.size([50, 16]);
+        host.fitContent({ padding: [4, 3], minSize: [36, 10] });
+
+        expect(host.getSize().x).toBe(58);
+        expect(host.getSize().y).toBe(22);
+    });
+
+    it('fitContent honors maxSize and clampToParent', () => {
+        const root = new Group().size([90, 70]);
+        const host = root.group();
+        host.rect([0, 0], [160, 100]);
+
+        host.fitContent({
+            padding: 10,
+            maxSize: [120, 90],
+            clampToParent: true,
+        }).overflow('hidden');
+
+        expect(host.getSize().x).toBe(90);
+        expect(host.getSize().y).toBe(70);
+    });
+
+    it('stores explicit overflow policy on groups', () => {
+        const root = new Group();
+        const host = root.group();
+
+        expect(host.getOverflow()).toBe('visible');
+        expect(host.overflow('hidden')).toBe(host);
+        expect(host.getOverflow()).toBe('hidden');
+        host.overflow('scroll');
+        expect(host.getOverflow()).toBe('scroll');
+    });
+
+    it('card helper creates editable internals', () => {
+        const root = new Group();
+        const card = root.card('Latency', {
+            at: [24, 18],
+            size: [180, 96],
+            subtitle: 'p95',
+            fill: '#f8fafc',
+        });
+
+        expect(card._position.get().x).toBe(24);
+        expect(card._position.get().y).toBe(18);
+        expect(card.frame.getSize().x).toBe(180);
+        expect(card.frame.getSize().y).toBe(96);
+        expect(card.titleNode.getContent()).toBe('Latency');
+        expect(card.subtitleNode?.getContent()).toBe('p95');
+        expect(card.children).toContain(card.content);
+    });
+
+    it('callout helper adds an editable accent strip', () => {
+        const root = new Group();
+        const callout = root.callout('Check failed jobs', {
+            size: [160, 64],
+            accentColor: '#ef4444',
+        });
+
+        expect(callout.titleNode.getContent()).toBe('Check failed jobs');
+        expect(callout.children).toContain(callout.accent);
+        expect(callout.accent.getSize().x).toBe(4);
+        expect(callout.accent.getSize().y).toBe(64);
+    });
+
+    it('legend helper builds swatches and labels with editable item nodes', () => {
+        const root = new Group();
+        const legend = root.legend([
+            { label: 'Train', color: '#2563eb' },
+            'Eval',
+        ], {
+            title: 'Runs',
+            at: [10, 20],
+            minSize: [120, 80],
+        });
+
+        expect(legend._position.get().x).toBe(10);
+        expect(legend._position.get().y).toBe(20);
+        expect(legend.titleNode?.getContent()).toBe('Runs');
+        expect(legend.itemNodes).toHaveLength(2);
+        expect(legend.itemNodes[0].label.getContent()).toBe('Train');
+        expect(legend.itemNodes[1].label.getContent()).toBe('Eval');
+        expect(legend.frame.getSize().x).toBeGreaterThanOrEqual(120);
+        expect(legend.frame.getSize().y).toBeGreaterThanOrEqual(80);
+    });
+
+    it('labelNode creates a centered label pinned near a target anchor', () => {
+        const root = new Group();
+        const target = root.rect([20, 30], [100, 40]);
+        const label = root.labelNode(target, 'Input', {
+            anchor: 'top',
+            offset: [0, -8],
+            color: '#2563eb',
+            fontSize: 11,
+        });
+
+        expect(label.getContent()).toBe('Input');
+        expect(label.getPosition().x).toBeCloseTo(70);
+        expect(label.getPosition().y).toBeCloseTo(22);
+
+        target.pos(40, 50);
+        expect(label.getPosition().x).toBeCloseTo(90);
+        expect(label.getPosition().y).toBeCloseTo(42);
+    });
+
+    it('labelEdge places and updates a label along a connector route', () => {
+        const root = new Group();
+        const edge = root.line([0, 0], [100, 0]);
+        const label = root.labelEdge(edge, 'sync', {
+            at: 'center',
+            offset: [0, -6],
+        });
+
+        expect(label.getContent()).toBe('sync');
+        expect(label.getPosition().x).toBeCloseTo(50);
+        expect(label.getPosition().y).toBeCloseTo(-6);
+
+        edge.to([200, 0]);
+        expect(label.getPosition().x).toBeCloseTo(100);
+        expect(label.getPosition().y).toBeCloseTo(-6);
+    });
+
+    it('flow helper creates editable steps and connectors', () => {
+        const root = new Group();
+        const flow = root.flow([
+            'Plan',
+            { label: 'Build', subtitle: 'ci' },
+            'Ship',
+        ], {
+            at: [12, 18],
+            gap: 20,
+            nodeSize: [90, 44],
+        });
+
+        expect(flow.getPosition().x).toBe(12);
+        expect(flow.getPosition().y).toBe(18);
+        expect(flow.steps).toHaveLength(3);
+        expect(flow.edges).toHaveLength(2);
+        expect(flow.steps[0].getPosition().x).toBeCloseTo(0);
+        expect(flow.steps[1].getPosition().x).toBeCloseTo(110);
+        expect(flow.getSize().x).toBeCloseTo(310);
+        expect(flow.getSize().y).toBeCloseTo(44);
+    });
+
+    it('flow helper supports vertical direction', () => {
+        const root = new Group();
+        const flow = root.flow(['Fetch', 'Transform'], {
+            direction: 'column',
+            gap: 12,
+            nodeSize: [100, 40],
+        });
+
+        expect(flow.steps[0].getPosition().y).toBeCloseTo(0);
+        expect(flow.steps[1].getPosition().y).toBeCloseTo(52);
+        expect(flow.getSize().x).toBeCloseTo(100);
+        expect(flow.getSize().y).toBeCloseTo(92);
+        expect(flow.edges).toHaveLength(1);
+    });
+
+    it('swimlane helper creates lane panels with nested flows', () => {
+        const root = new Group();
+        const board = root.swimlane([
+            { title: 'Frontend', steps: ['Design', 'Build'] },
+            { title: 'Backend', steps: ['API', 'Deploy'] },
+        ], {
+            size: [480, 250],
+            laneHeight: 100,
+            laneGap: 12,
+        });
+
+        expect(board.lanes).toHaveLength(2);
+        expect(board.getSize().x).toBe(480);
+        expect(board.getSize().y).toBe(250);
+        expect(board.lanes[0].titleNode?.getContent()).toBe('Frontend');
+        expect(board.lanes[0].flow.steps).toHaveLength(2);
+        expect(board.lanes[1].getPosition().y).toBeCloseTo(112);
+    });
+
+    it('compose helper applies constrained plain-language placement phrases', () => {
+        const root = new Group();
+        const chart = root.card('Chart', { at: [20, 30], size: [120, 80] });
+        const legend = root.legend(['Train', 'Eval']);
+
+        const result = root.compose('legend right of chart', { legend, chart }, {
+            gap: 18,
+            align: 'start',
+        });
+
+        expect(result).toBe(legend);
+        expect(legend.getPosition().x).toBeCloseTo(158);
+        expect(legend.getPosition().y).toBeCloseTo(30);
+
+        chart.pos(40, 50);
+        expect(legend.getPosition().x).toBeCloseTo(178);
+        expect(legend.getPosition().y).toBeCloseTo(50);
+    });
+
+    it('compose helper supports center and containment phrases', () => {
+        const root = new Group();
+        const panel = root.panel({ at: [0, 0], size: [220, 140] });
+        const badge = root.node('Badge', { size: [60, 32] });
+
+        root.compose('badge center in panel', { badge, panel });
+        expect(badge.getPosition().x).toBeCloseTo(80);
+        expect(badge.getPosition().y).toBeCloseTo(54);
+
+        badge.at([200, 120]);
+        root.compose('badge keep inside panel', { badge, panel }, { padding: 10 });
+        expect(badge.getPosition().x).toBeCloseTo(150);
+        expect(badge.getPosition().y).toBeCloseTo(98);
+    });
+
     it('container helper supports nesting through content groups', () => {
         const root = new Group();
         const outer = root.container({

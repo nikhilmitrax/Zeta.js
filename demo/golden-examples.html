@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zeta.js - Golden Examples</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+      background: #07111f;
+      color: #e6eef7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 18px 12px 28px;
+    }
+
+    header {
+      padding: 1rem 0 0.8rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #ecf8ff;
+    }
+
+    header p {
+      margin-top: 0.35rem;
+      color: #9eb7cd;
+      font-size: 0.95rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      margin: 0.75rem 0 1.2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .controls button {
+      padding: 0.55rem 1.5rem;
+      border-radius: 8px;
+      border: 1px solid rgba(42, 215, 255, 0.45);
+      background: rgba(42, 215, 255, 0.08);
+      color: #bde9fb;
+      font-size: 0.84rem;
+      font-weight: 560;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .controls button:hover {
+      background: rgba(42, 215, 255, 0.18);
+      border-color: rgba(42, 215, 255, 0.82);
+    }
+
+    .controls button.active {
+      background: #0ea5e9;
+      color: #f0f9ff;
+      border-color: transparent;
+      box-shadow: 0 2px 16px rgba(14, 165, 233, 0.34);
+    }
+
+    #figure {
+      width: 1180px;
+      height: 980px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #0b1424;
+      overflow: hidden;
+      box-shadow: 0 4px 36px rgba(0, 0, 0, 0.45);
+      max-width: 100%;
+    }
+
+    #figure canvas,
+    #figure svg {
+      display: block;
+    }
+
+    footer {
+      margin-top: 1.5rem;
+      padding-bottom: 1.5rem;
+      color: #7288a5;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Zeta.js Golden Examples</h1>
+    <p>Runnable recipes for layout, routing, plotting, interactivity, animation, renderers, and plugins</p>
+  </header>
+
+  <div class="controls">
+    <button id="btn-canvas" class="active">Canvas2D</button>
+    <button id="btn-svg">SVG</button>
+  </div>
+
+  <div id="figure"></div>
+
+  <footer>Zeta.js - canonical examples as one runnable gallery</footer>
+
+  <script type="module" src="./golden-examples.ts"></script>
+</body>
+
+</html>

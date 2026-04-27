@@ -21,6 +21,7 @@ import {
     AlignmentConstraint,
     type AlignOption,
     type ConstraintOptions,
+    type ConstraintDebugInfo,
 } from './constraints';
 import {
     batchSceneMutations,
@@ -280,6 +281,20 @@ export interface BoundsOptions {
 
 export interface PositionOptions {
     space?: BoundsSpace;
+}
+
+export interface CenterInOptions {
+    offset?: UnitPoint;
+}
+
+export interface KeepInsideOptions {
+    padding?: number;
+}
+
+export interface NodeLayoutDebugInfo {
+    constraint: ConstraintDebugInfo | null;
+    shownBounds: BoundsKind[];
+    layoutOnly: boolean;
 }
 
 export type MinHitSize = number | [number, number];
@@ -697,6 +712,14 @@ export abstract class SceneNode {
         return this;
     }
 
+    debugLayoutInfo(): NodeLayoutDebugInfo {
+        return {
+            constraint: this._constraint?.debugInfo() ?? null,
+            shownBounds: this._getShownBoundsKinds(),
+            layoutOnly: this.isLayoutOnly(),
+        };
+    }
+
     /** @internal */
     _isDraggable(): boolean {
         return this._draggable !== null;
@@ -966,6 +989,73 @@ export abstract class SceneNode {
     }
 
     /**
+     * Center this node inside `target` using reactive anchor alignment.
+     */
+    centerIn(target: SceneNode, opts?: CenterInOptions): this {
+        return this.alignTarget(target, 'center', 'center', { offset: opts?.offset });
+    }
+
+    /**
+     * Move this node just enough for its layout bounds to fit inside `target`.
+     * This is a one-shot placement helper because containment is not currently
+     * represented by the reactive constraint system.
+     */
+    keepInside(target: SceneNode, opts?: KeepInsideOptions): this {
+        const padding = opts?.padding ?? 0;
+        if (!Number.isFinite(padding) || padding < 0) {
+            throw new Error('Zeta: keepInside padding must be a finite non-negative number.');
+        }
+
+        this._disposeConstraint();
+        this._settleForMeasurement();
+        const targetBBox = this._worldBBoxInParentSpace(this._placementTargetWorldBBox(target));
+        const selfBBox = this._worldBBoxInParentSpace(this._computeWorldBounds('layout'));
+
+        const minX = targetBBox.minX + padding;
+        const minY = targetBBox.minY + padding;
+        const maxX = targetBBox.maxX - padding;
+        const maxY = targetBBox.maxY - padding;
+
+        let dx = 0;
+        let dy = 0;
+
+        if (selfBBox.width > maxX - minX) {
+            dx = minX - selfBBox.minX;
+        } else if (selfBBox.minX < minX) {
+            dx = minX - selfBBox.minX;
+        } else if (selfBBox.maxX > maxX) {
+            dx = maxX - selfBBox.maxX;
+        }
+
+        if (selfBBox.height > maxY - minY) {
+            dy = minY - selfBBox.minY;
+        } else if (selfBBox.minY < minY) {
+            dy = minY - selfBBox.minY;
+        } else if (selfBBox.maxY > maxY) {
+            dy = maxY - selfBBox.maxY;
+        }
+
+        const current = this._position.get();
+        return this.pos(current.x + dx, current.y + dy);
+    }
+
+    dockRightOf(target: SceneNode, opts?: ConstraintOptions): this {
+        return this.rightOf(target, opts);
+    }
+
+    dockLeftOf(target: SceneNode, opts?: ConstraintOptions): this {
+        return this.leftOf(target, opts);
+    }
+
+    dockAbove(target: SceneNode, opts?: ConstraintOptions): this {
+        return this.above(target, opts);
+    }
+
+    dockBelow(target: SceneNode, opts?: ConstraintOptions): this {
+        return this.below(target, opts);
+    }
+
+    /**
      * Set absolute position (shorthand for `.pos()`).
      * Unlike `.pos()`, accepts a tuple and is designed for use with helpers like `Z.midpoint()`.
      */
@@ -1124,6 +1214,33 @@ export abstract class SceneNode {
     private _formatConstraintRemediationHint(loopPath: SceneNode[], attemptedNode: SceneNode): string {
         const cycleText = this._formatConstraintPath(loopPath);
         return `Hint: break one dependency in ${cycleText} before adding a new link from ${attemptedNode.type}#${attemptedNode.id}. You can clear one side with .at([x, y]) or constrain both nodes to a neutral parent/group node instead of each other.`;
+    }
+
+    private _worldBBoxInParentSpace(worldBBox: BBox): BBox {
+        if (!this.parent) return worldBBox;
+        const parentInv = this.parent.getWorldTransform().invert();
+        return BBox.fromPoints([
+            parentInv.transformPoint(worldBBox.topLeft),
+            parentInv.transformPoint(worldBBox.topRight),
+            parentInv.transformPoint(worldBBox.bottomLeft),
+            parentInv.transformPoint(worldBBox.bottomRight),
+        ]);
+    }
+
+    private _placementTargetWorldBBox(target: SceneNode): BBox {
+        const referenceSize = target._getUnitReferenceSizeForChildren();
+        const local = referenceSize
+            ? BBox.fromPosSize(0, 0, referenceSize.width, referenceSize.height)
+            : target._computeLocalBounds('layout');
+        if (local.isEmpty()) return local;
+
+        const wt = target.getWorldTransform();
+        return BBox.fromPoints([
+            wt.transformPoint(local.topLeft),
+            wt.transformPoint(local.topRight),
+            wt.transformPoint(local.bottomLeft),
+            wt.transformPoint(local.bottomRight),
+        ]);
     }
 
     private _containsLocalPoint(local: Vec2, tolerance: number): boolean {

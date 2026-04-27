@@ -27,6 +27,7 @@ import {
     type LineRouteOptions,
 } from '../shapes/line';
 import type { AnchorName } from './anchor';
+import type { ConstraintOptions } from './constraints';
 import {
     flushMutationEffects,
     isBatchingSceneMutations,
@@ -117,6 +118,138 @@ export interface ContainerOptions {
     contentOffset?: UnitPoint;
 }
 
+export interface FitContentOptions {
+    padding?: number | [number, number];
+    minSize?: UnitSize;
+    maxSize?: UnitSize;
+    clampToParent?: boolean;
+}
+
+export type OverflowPolicy = 'visible' | 'hidden' | 'scroll';
+
+export interface CardOptions {
+    at?: UnitPoint | [number, number, number];
+    size?: UnitSize;
+    padding?: number | [number, number];
+    radius?: number;
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    titleColor?: string;
+    titleFontSize?: number;
+    subtitle?: string;
+    subtitleColor?: string;
+    subtitleFontSize?: number;
+    fontFamily?: string;
+}
+
+export type CardGroup = Group & {
+    readonly frame: Rect;
+    readonly titleNode: Text;
+    readonly subtitleNode: Text | null;
+    readonly content: Group;
+};
+
+export interface CalloutOptions extends CardOptions {
+    accentColor?: string;
+}
+
+export type CalloutGroup = CardGroup & {
+    readonly accent: Rect;
+};
+
+export type LegendItem = string | {
+    label: string;
+    color?: string;
+};
+
+export interface LegendOptions {
+    at?: UnitPoint | [number, number, number];
+    title?: string;
+    itemGap?: UnitValue;
+    swatchSize?: number;
+    padding?: number | [number, number];
+    minSize?: UnitSize;
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    textColor?: string;
+    titleColor?: string;
+    fontSize?: number;
+    fontFamily?: string;
+}
+
+export type LegendGroup = Group & {
+    readonly frame: Rect;
+    readonly titleNode: Text | null;
+    readonly content: Group;
+    readonly itemNodes: Array<{ swatch: Rect; label: Text }>;
+};
+
+export interface LabelNodeOptions {
+    anchor?: AnchorName;
+    offset?: UnitPoint;
+    color?: string;
+    fontSize?: number;
+    fontFamily?: string;
+}
+
+export interface LabelEdgeOptions {
+    at?: 'start' | 'center' | 'end';
+    offset?: UnitPoint;
+    color?: string;
+    fontSize?: number;
+    fontFamily?: string;
+}
+
+export type FlowStep = string | {
+    label: string;
+    subtitle?: string;
+};
+
+export interface FlowOptions {
+    at?: UnitPoint | [number, number, number];
+    direction?: 'row' | 'column';
+    gap?: UnitValue;
+    nodeSize?: UnitSize;
+    node?: NodeOptions;
+    edge?: EdgeOptions;
+}
+
+export type FlowGroup = Group & {
+    readonly steps: Group[];
+    readonly edges: Line[];
+};
+
+export type SwimlaneSpec = {
+    title: string;
+    steps: FlowStep[];
+};
+
+export interface SwimlaneOptions {
+    at?: UnitPoint | [number, number, number];
+    size?: UnitSize;
+    laneGap?: UnitValue;
+    laneHeight?: UnitValue;
+    flow?: FlowOptions;
+    panel?: ContainerOptions;
+}
+
+export type SwimlaneLaneGroup = ContainerGroup & {
+    readonly flow: FlowGroup;
+};
+
+export type SwimlaneGroup = Group & {
+    readonly lanes: SwimlaneLaneGroup[];
+};
+
+export type ComposeRefs = Record<string, SceneNode>;
+
+export interface ComposeOptions extends ConstraintOptions {
+    offset?: UnitPoint;
+    padding?: number;
+}
+
 export interface NodeOptions {
     at?: UnitPoint | [number, number, number];
     size?: UnitSize;
@@ -182,6 +315,8 @@ type LayoutChildMetrics = {
     height: number;
 };
 
+const DEFAULT_LEGEND_COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2'];
+
 export class Group extends SceneNode {
     readonly type: NodeType = 'group';
     readonly _size: Signal<Vec2 | null>;
@@ -193,6 +328,7 @@ export class Group extends SceneNode {
     private _layoutSubscriptions = new Map<SceneNode, () => void>();
     private _isApplyingLayout = false;
     private _layoutQueued = false;
+    private _overflow: OverflowPolicy = 'visible';
 
     constructor(position: Vec2 = Vec2.zero()) {
         super(position);
@@ -253,9 +389,14 @@ export class Group extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
-        let box = this._size.get()
-            ? BBox.fromPosSize(0, 0, this._size.get()!.x, this._size.get()!.y)
+        const explicitSize = this._size.get();
+        let box = explicitSize
+            ? BBox.fromPosSize(0, 0, explicitSize.x, explicitSize.y)
             : BBox.empty();
+
+        if (explicitSize && this._overflow !== 'visible') {
+            return box;
+        }
 
         for (const child of this.children) {
             const childLocal = child.computeLocalBBox();
@@ -277,6 +418,11 @@ export class Group extends SceneNode {
     override _computeLocalBounds(kind: BoundsKind): BBox {
         if (kind === 'layout') {
             return this.computeLocalBBox();
+        }
+
+        const explicitSize = this._size.get();
+        if (explicitSize && this._overflow !== 'visible') {
+            return BBox.fromPosSize(0, 0, explicitSize.x, explicitSize.y);
         }
 
         let box = BBox.empty();
@@ -489,6 +635,381 @@ export class Group extends SceneNode {
 
             return container;
         });
+    }
+
+    panel(opts: ContainerOptions = {}): ContainerGroup {
+        return this.container(opts);
+    }
+
+    card(title: string, opts: CardOptions = {}): CardGroup {
+        return this.batch(() => {
+            const card = new Group() as CardGroup;
+            this.addChild(card);
+            if (opts.at) {
+                card.pos(this._resolveFactoryPoint(opts.at));
+            }
+
+            const [padX, padY] = this._normalizePadding(opts.padding ?? [16, 12]);
+            const titleFontSize = opts.titleFontSize ?? 13;
+            const subtitle = opts.subtitle?.trim() ? opts.subtitle.trim() : null;
+            const subtitleFontSize = opts.subtitleFontSize ?? Math.max(10, titleFontSize - 2);
+            const titleWidth = title.length * titleFontSize * 0.62;
+            const subtitleWidth = subtitle ? subtitle.length * subtitleFontSize * 0.58 : 0;
+            const contentWidth = Math.max(titleWidth, subtitleWidth);
+            const contentHeight = titleFontSize * 1.25 + (subtitle ? subtitleFontSize * 1.25 + 5 : 0);
+
+            const sizeSpec = opts.size
+                ? parseUnitSize(opts.size, 'card size.width', 'card size.height')
+                : null;
+            const width = sizeSpec
+                ? this._resolveChildRelativeUnit(sizeSpec[0], 'x', 'card size.width')
+                : Math.max(96, contentWidth + padX * 2);
+            const height = sizeSpec
+                ? this._resolveChildRelativeUnit(sizeSpec[1], 'y', 'card size.height')
+                : Math.max(54, contentHeight + padY * 2);
+
+            card.size([width, height]);
+
+            const frame = new Rect(Vec2.zero(), new Vec2(width, height))
+                .radius(opts.radius ?? 10)
+                .fill(opts.fill ?? '#ffffff')
+                .stroke(opts.stroke ?? '#111827', opts.strokeWidth ?? 1.4);
+            card.addChild(frame);
+
+            const titleNode = new Text(title, new Vec2(padX, padY + titleFontSize))
+                .fill(opts.titleColor ?? '#111827')
+                .fontSize(titleFontSize);
+            if (opts.fontFamily) titleNode.fontFamily(opts.fontFamily);
+            card.addChild(titleNode);
+
+            let subtitleNode: Text | null = null;
+            if (subtitle) {
+                subtitleNode = new Text(subtitle, new Vec2(padX, padY + titleFontSize + subtitleFontSize + 5))
+                    .fill(opts.subtitleColor ?? '#64748b')
+                    .fontSize(subtitleFontSize);
+                if (opts.fontFamily) subtitleNode.fontFamily(opts.fontFamily);
+                card.addChild(subtitleNode);
+            }
+
+            const contentTop = padY + contentHeight + 8;
+            const content = new Group(new Vec2(padX, contentTop));
+            content.size([
+                Math.max(0, width - padX * 2),
+                Math.max(0, height - contentTop - padY),
+            ]);
+            card.addChild(content);
+
+            Object.defineProperties(card, {
+                frame: { value: frame, enumerable: true },
+                titleNode: { value: titleNode, enumerable: true },
+                subtitleNode: { value: subtitleNode, enumerable: true },
+                content: { value: content, enumerable: true },
+            });
+
+            return card;
+        });
+    }
+
+    callout(text: string, opts: CalloutOptions = {}): CalloutGroup {
+        const callout = this.card(text, {
+            ...opts,
+            fill: opts.fill ?? '#f8fafc',
+            stroke: opts.stroke ?? (opts.accentColor ?? '#0ea5e9'),
+            strokeWidth: opts.strokeWidth ?? 1.4,
+            titleColor: opts.titleColor ?? '#0f172a',
+        }) as CalloutGroup;
+        const accent = new Rect(Vec2.zero(), new Vec2(4, callout.getSize().y))
+            .radius(opts.radius ?? 10)
+            .fill(opts.accentColor ?? '#0ea5e9')
+            .stroke(opts.accentColor ?? '#0ea5e9', 0);
+        callout.addChild(accent);
+        Object.defineProperty(callout, 'accent', { value: accent, enumerable: true });
+        return callout;
+    }
+
+    legend(items: LegendItem[], opts: LegendOptions = {}): LegendGroup {
+        return this.batch(() => {
+            const legend = new Group() as LegendGroup;
+            this.addChild(legend);
+            if (opts.at) {
+                legend.pos(this._resolveFactoryPoint(opts.at));
+            }
+
+            const [padX, padY] = this._normalizePadding(opts.padding ?? [12, 10]);
+            const swatchSize = Math.max(4, opts.swatchSize ?? 10);
+            const fontSize = opts.fontSize ?? 12;
+            const itemGap = this._resolveChildRelativeValue(opts.itemGap ?? 8, 'y', 'legend itemGap');
+            const title = opts.title?.trim() ? opts.title.trim() : null;
+            const titleHeight = title ? fontSize * 1.3 + itemGap : 0;
+            const normalized = items.map((item, idx) => typeof item === 'string'
+                ? { label: item, color: DEFAULT_LEGEND_COLORS[idx % DEFAULT_LEGEND_COLORS.length] }
+                : { label: item.label, color: item.color ?? DEFAULT_LEGEND_COLORS[idx % DEFAULT_LEGEND_COLORS.length] });
+
+            const maxLabelWidth = normalized.reduce((max, item) => Math.max(max, item.label.length * fontSize * 0.58), 0);
+            const contentWidth = swatchSize + 8 + maxLabelWidth;
+            const contentHeight = normalized.length > 0
+                ? normalized.length * Math.max(swatchSize, fontSize) + Math.max(0, normalized.length - 1) * itemGap
+                : 0;
+            const [minWidth, minHeight] = this._resolveMinSize(opts.minSize);
+            const width = Math.max(minWidth, contentWidth + padX * 2);
+            const height = Math.max(minHeight, titleHeight + contentHeight + padY * 2);
+
+            legend.size([width, height]);
+
+            const frame = new Rect(Vec2.zero(), new Vec2(width, height))
+                .radius(8)
+                .fill(opts.fill ?? 'rgba(255,255,255,0.92)')
+                .stroke(opts.stroke ?? 'rgba(15,23,42,0.18)', opts.strokeWidth ?? 1);
+            legend.addChild(frame);
+
+            let titleNode: Text | null = null;
+            if (title) {
+                titleNode = new Text(title, new Vec2(padX, padY + fontSize))
+                    .fill(opts.titleColor ?? opts.textColor ?? '#0f172a')
+                    .fontSize(fontSize);
+                if (opts.fontFamily) titleNode.fontFamily(opts.fontFamily);
+                legend.addChild(titleNode);
+            }
+
+            const content = new Group(new Vec2(padX, padY + titleHeight));
+            legend.addChild(content);
+            const itemNodes: Array<{ swatch: Rect; label: Text }> = [];
+            normalized.forEach((item, idx) => {
+                const y = idx * (Math.max(swatchSize, fontSize) + itemGap);
+                const swatch = new Rect(new Vec2(0, y + (fontSize - swatchSize) / 2), new Vec2(swatchSize, swatchSize))
+                    .radius(2)
+                    .fill(item.color)
+                    .stroke(item.color, 1);
+                const label = new Text(item.label, new Vec2(swatchSize + 8, y + fontSize))
+                    .fill(opts.textColor ?? '#334155')
+                    .fontSize(fontSize);
+                if (opts.fontFamily) label.fontFamily(opts.fontFamily);
+                content.add(swatch, label);
+                itemNodes.push({ swatch, label });
+            });
+            content.size([contentWidth, contentHeight]);
+
+            Object.defineProperties(legend, {
+                frame: { value: frame, enumerable: true },
+                titleNode: { value: titleNode, enumerable: true },
+                content: { value: content, enumerable: true },
+                itemNodes: { value: itemNodes, enumerable: true },
+            });
+
+            return legend;
+        });
+    }
+
+    labelNode(target: SceneNode, content: string, opts: LabelNodeOptions = {}): Text {
+        const label = this.text(content)
+            .textAlign('center')
+            .textBaseline('middle')
+            .fill(opts.color ?? '#334155')
+            .fontSize(opts.fontSize ?? 12)
+            .follow(target, opts.anchor ?? 'top', { offset: opts.offset ?? [0, -12] });
+        if (opts.fontFamily) {
+            label.fontFamily(opts.fontFamily);
+        }
+        return label;
+    }
+
+    labelEdge(edge: Line, content: string, opts: LabelEdgeOptions = {}): Text {
+        const label = this.text(content)
+            .textAlign('center')
+            .textBaseline('middle')
+            .fill(opts.color ?? '#334155')
+            .fontSize(opts.fontSize ?? 12);
+        if (opts.fontFamily) {
+            label.fontFamily(opts.fontFamily);
+        }
+
+        const update = () => {
+            const points = edge.getRoutePoints();
+            if (points.length === 0) return;
+            const localPoint = this._pointAlongEdge(edge, points, opts.at ?? 'center');
+            const worldPoint = edge.getWorldTransform().transformPoint(localPoint);
+            const parentPoint = this.getWorldTransform().invert().transformPoint(worldPoint);
+            const offset = opts.offset ?? [0, -10];
+            label.pos(
+                parentPoint.x + this._resolveChildRelativeValue(offset[0], 'x', 'labelEdge offset.x'),
+                parentPoint.y + this._resolveChildRelativeValue(offset[1], 'y', 'labelEdge offset.y'),
+            );
+        };
+
+        edge.watchLayout(update);
+        this.watchLayout(update);
+        update();
+        return label;
+    }
+
+    flow(steps: FlowStep[], opts: FlowOptions = {}): FlowGroup {
+        return this.batch(() => {
+            const flow = new Group() as FlowGroup;
+            this.addChild(flow);
+            if (opts.at) {
+                flow.pos(this._resolveFactoryPoint(opts.at));
+            }
+
+            const direction = opts.direction ?? 'row';
+            const nodeSize = opts.nodeSize ?? [120, 56];
+            const nodeSpecs = parseUnitSize(nodeSize, 'flow nodeSize.width', 'flow nodeSize.height');
+            const nodeWidth = this._resolveChildRelativeUnit(nodeSpecs[0], 'x', 'flow nodeSize.width');
+            const nodeHeight = this._resolveChildRelativeUnit(nodeSpecs[1], 'y', 'flow nodeSize.height');
+            const gap = this._resolveChildRelativeValue(opts.gap ?? 28, direction === 'row' ? 'x' : 'y', 'flow gap');
+            const nodes: Group[] = [];
+            const edges: Line[] = [];
+
+            steps.forEach((step, idx) => {
+                const spec = typeof step === 'string' ? { label: step } : step;
+                const node = flow.node(spec.label, {
+                    ...(opts.node ?? {}),
+                    subtitle: spec.subtitle ?? opts.node?.subtitle,
+                    at: direction === 'row'
+                        ? [idx * (nodeWidth + gap), 0]
+                        : [0, idx * (nodeHeight + gap)],
+                    size: [nodeWidth, nodeHeight],
+                });
+                nodes.push(node);
+
+                const previous = nodes[idx - 1];
+                if (previous) {
+                    edges.push(flow.edge(previous, node, {
+                        route: direction === 'row' ? 'orthogonal' : 'step',
+                        ...(opts.edge ?? {}),
+                    }));
+                }
+            });
+
+            const width = direction === 'row'
+                ? Math.max(0, steps.length * nodeWidth + Math.max(0, steps.length - 1) * gap)
+                : nodeWidth;
+            const height = direction === 'row'
+                ? nodeHeight
+                : Math.max(0, steps.length * nodeHeight + Math.max(0, steps.length - 1) * gap);
+            flow.size([width, height]);
+
+            Object.defineProperties(flow, {
+                steps: { value: nodes, enumerable: true },
+                edges: { value: edges, enumerable: true },
+            });
+
+            return flow;
+        });
+    }
+
+    swimlane(lanes: SwimlaneSpec[], opts: SwimlaneOptions = {}): SwimlaneGroup {
+        return this.batch(() => {
+            const swimlane = new Group() as SwimlaneGroup;
+            this.addChild(swimlane);
+            if (opts.at) {
+                swimlane.pos(this._resolveFactoryPoint(opts.at));
+            }
+
+            const sizeSpec = opts.size
+                ? parseUnitSize(opts.size, 'swimlane size.width', 'swimlane size.height')
+                : null;
+            const laneGap = this._resolveChildRelativeValue(opts.laneGap ?? 14, 'y', 'swimlane laneGap');
+            const laneHeight = this._resolveChildRelativeValue(opts.laneHeight ?? 120, 'y', 'swimlane laneHeight');
+            const width = sizeSpec
+                ? this._resolveChildRelativeUnit(sizeSpec[0], 'x', 'swimlane size.width')
+                : 520;
+            const totalHeight = sizeSpec
+                ? this._resolveChildRelativeUnit(sizeSpec[1], 'y', 'swimlane size.height')
+                : Math.max(0, lanes.length * laneHeight + Math.max(0, lanes.length - 1) * laneGap);
+            const laneGroups: SwimlaneLaneGroup[] = [];
+
+            lanes.forEach((lane, idx) => {
+                const panel = swimlane.panel({
+                    ...(opts.panel ?? {}),
+                    title: lane.title,
+                    at: [0, idx * (laneHeight + laneGap)],
+                    size: [width, laneHeight],
+                    padding: opts.panel?.padding ?? [16, 12],
+                }) as SwimlaneLaneGroup;
+                const flow = panel.content.flow(lane.steps, {
+                    direction: 'row',
+                    gap: 22,
+                    nodeSize: [104, 46],
+                    ...(opts.flow ?? {}),
+                });
+                Object.defineProperty(panel, 'flow', { value: flow, enumerable: true });
+                laneGroups.push(panel);
+            });
+
+            swimlane.size([width, totalHeight]);
+            Object.defineProperty(swimlane, 'lanes', { value: laneGroups, enumerable: true });
+            return swimlane;
+        });
+    }
+
+    compose(command: string, refs: ComposeRefs, opts: ComposeOptions = {}): SceneNode {
+        const normalized = command.trim().toLowerCase().replace(/\s+/g, ' ');
+        const names = Object.keys(refs).sort((a, b) => b.length - a.length);
+        const namePattern = names.map((name) => this._escapeRegExp(name.toLowerCase())).join('|');
+        if (!namePattern) {
+            throw new Error('Zeta: compose(command, refs) requires at least one named ref.');
+        }
+
+        const match = new RegExp(`^(${namePattern})\\s+(.+?)\\s+(${namePattern})$`).exec(normalized);
+        if (!match) {
+            throw new Error(
+                'Zeta: compose() supports phrases like "legend right of chart", "label above card", or "badge inside panel".',
+            );
+        }
+
+        const subject = this._lookupComposeRef(match[1], refs);
+        const relation = match[2];
+        const target = this._lookupComposeRef(match[3], refs);
+
+        switch (relation) {
+            case 'right of':
+            case 'to right of':
+                return subject.dockRightOf(target, opts);
+            case 'left of':
+            case 'to left of':
+                return subject.dockLeftOf(target, opts);
+            case 'above':
+                return subject.dockAbove(target, opts);
+            case 'below':
+            case 'under':
+                return subject.dockBelow(target, opts);
+            case 'center in':
+            case 'centered in':
+            case 'inside':
+                return subject.centerIn(target, { offset: opts.offset });
+            case 'keep inside':
+            case 'within':
+                return subject.keepInside(target, { padding: opts.padding });
+            default:
+                throw new Error(
+                    `Zeta: compose() does not understand relation "${relation}". ` +
+                    'Supported relations: right of, left of, above, below, center in, inside, keep inside, within.',
+                );
+        }
+    }
+
+    fitContent(opts: FitContentOptions = {}): this {
+        const contentBox = this._computeChildrenLocalBBox();
+        const [padX, padY] = this._normalizePadding(opts.padding, 0);
+        const [minWidth, minHeight] = this._resolveOptionalSize(opts.minSize, 'fitContent minSize', [0, 0]);
+        const [maxWidth, maxHeight] = this._resolveFitContentMaxSize(opts.maxSize, opts.clampToParent);
+        const contentWidth = contentBox.isEmpty() ? 0 : contentBox.width;
+        const contentHeight = contentBox.isEmpty() ? 0 : contentBox.height;
+
+        return this.size([
+            Math.min(maxWidth, Math.max(minWidth, contentWidth + padX * 2)),
+            Math.min(maxHeight, Math.max(minHeight, contentHeight + padY * 2)),
+        ]);
+    }
+
+    overflow(policy: OverflowPolicy): this {
+        this._overflow = policy;
+        this._markRenderDirty();
+        return this;
+    }
+
+    getOverflow(): OverflowPolicy {
+        return this._overflow;
     }
 
     row(opts?: RowLayoutOptions): Group;
@@ -801,12 +1322,58 @@ export class Group extends SceneNode {
         ];
     }
 
-    private _normalizePadding(padding?: number | [number, number]): [number, number] {
+    private _normalizePadding(padding?: number | [number, number], defaultValue = 14): [number, number] {
         if (Array.isArray(padding)) {
             return [Math.max(0, padding[0] ?? 0), Math.max(0, padding[1] ?? 0)];
         }
-        const p = Math.max(0, padding ?? 14);
+        const p = Math.max(0, padding ?? defaultValue);
         return [p, p];
+    }
+
+    private _resolveOptionalSize(size: UnitSize | undefined, context: string, fallback: [number, number]): [number, number] {
+        if (!size) return fallback;
+        const specs = parseUnitSize(size, `${context}.width`, `${context}.height`);
+        return [
+            Math.max(0, this._resolveUnitSpec(specs[0], 'x', `${context}.width`)),
+            Math.max(0, this._resolveUnitSpec(specs[1], 'y', `${context}.height`)),
+        ];
+    }
+
+    private _resolveMinSize(size?: UnitSize): [number, number] {
+        return this._resolveOptionalSize(size, 'fitContent minSize', [0, 0]);
+    }
+
+    private _resolveFitContentMaxSize(size: UnitSize | undefined, clampToParent?: boolean): [number, number] {
+        const explicit = this._resolveOptionalSize(size, 'fitContent maxSize', [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY]);
+        if (!clampToParent) return explicit;
+
+        const reference = this._getParentUnitReferenceSize();
+        if (!reference) return explicit;
+        return [
+            Math.min(explicit[0], reference.width),
+            Math.min(explicit[1], reference.height),
+        ];
+    }
+
+    private _computeChildrenLocalBBox(): BBox {
+        let box = BBox.empty();
+
+        for (const child of this.children) {
+            const childLocal = child.computeLocalBBox();
+            if (childLocal.isEmpty()) continue;
+
+            const lt = child.getLocalTransform();
+            const corners = [
+                childLocal.topLeft,
+                childLocal.topRight,
+                childLocal.bottomLeft,
+                childLocal.bottomRight,
+            ];
+            const transformed = corners.map((c) => lt.transformPoint(c));
+            box = box.union(BBox.fromPoints(transformed));
+        }
+
+        return box;
     }
 
     private _resolveChildRelativeUnit(spec: UnitSpec, axis: 'x' | 'y', context: string): number {
@@ -815,6 +1382,43 @@ export class Group extends SceneNode {
 
     private _resolveChildRelativeValue(value: UnitValue, axis: 'x' | 'y', context: string): number {
         return this._resolveChildRelativeUnit(parseUnitValue(value, context), axis, context);
+    }
+
+    private _lookupComposeRef(name: string, refs: ComposeRefs): SceneNode {
+        for (const [key, node] of Object.entries(refs)) {
+            if (key.toLowerCase() === name) return node;
+        }
+        throw new Error(`Zeta: compose() could not find ref "${name}".`);
+    }
+
+    private _escapeRegExp(input: string): string {
+        return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    private _pointAlongEdge(edge: Line, points: Vec2[], at: NonNullable<LabelEdgeOptions['at']>): Vec2 {
+        if (at === 'start') return points[0];
+        if (at === 'end') return points[points.length - 1];
+        if (points.length === 1) return points[0];
+
+        let total = 0;
+        for (let i = 1; i < points.length; i++) {
+            total += points[i - 1].distance(points[i]);
+        }
+        if (total === 0) return edge.getFrom().lerp(edge.getTo(), 0.5);
+
+        let traveled = 0;
+        const midpoint = total / 2;
+        for (let i = 1; i < points.length; i++) {
+            const a = points[i - 1];
+            const b = points[i];
+            const segment = a.distance(b);
+            if (traveled + segment >= midpoint) {
+                const t = segment === 0 ? 0 : (midpoint - traveled) / segment;
+                return a.lerp(b, t);
+            }
+            traveled += segment;
+        }
+        return points[points.length - 1];
     }
 
     private _resolveFactoryPoint(point: UnitPoint | [number, number, number]): UnitPoint {

@@ -28,6 +28,14 @@ export const DEMO_REGISTRY: DemoDefinition[] = [
         tags: ['node()', 'edge()', 'layout macros'],
     },
     {
+        id: 'golden-examples',
+        file: 'golden-examples.html',
+        href: './golden-examples.html',
+        title: 'Golden Examples',
+        description: 'Fifteen runnable recipes covering panels, grids, flows, ports, plotting, paths, interactivity, animation, renderers, and plugins.',
+        tags: ['golden recipes', 'authoring API', 'plugins'],
+    },
+    {
         id: 'periodic-table',
         file: 'periodic-table.html',
         href: './periodic-table.html',

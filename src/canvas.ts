@@ -5,6 +5,23 @@ import {
     Group,
     type ContainerGroup,
     type ContainerOptions,
+    type CardGroup,
+    type CardOptions,
+    type CalloutGroup,
+    type CalloutOptions,
+    type LegendGroup,
+    type LegendItem,
+    type LegendOptions,
+    type LabelEdgeOptions,
+    type LabelNodeOptions,
+    type FlowGroup,
+    type FlowOptions,
+    type FlowStep,
+    type SwimlaneGroup,
+    type SwimlaneOptions,
+    type SwimlaneSpec,
+    type ComposeOptions,
+    type ComposeRefs,
     type RowLayoutOptions,
     type ColumnLayoutOptions,
     type GridLayoutOptions,
@@ -29,6 +46,13 @@ import { Circle } from './shapes/circle';
 import { Path } from './shapes/path';
 import { Text, type LatexTextOptions } from './shapes/text';
 import { Line, type LineConnectOptions } from './shapes/line';
+import {
+    getSpacingPreset,
+    getStarterTheme,
+    type SpacingPreset,
+    type SpacingPresetName,
+    type StarterThemeName,
+} from './core/presets';
 
 export type RendererType = 'canvas2d' | 'svg' | 'auto';
 
@@ -61,6 +85,54 @@ export interface DebugSnapshot {
     }>;
     routes: Array<{ id: number; points: [number, number][] }>;
 }
+
+export interface DebugLayoutNode {
+    id: number;
+    type: string;
+    parentId: number | null;
+    position: [number, number];
+    size: [number, number];
+    bounds: {
+        layout: [number, number, number, number];
+        visual: [number, number, number, number];
+        hit: [number, number, number, number];
+    };
+    constraint: ReturnType<SceneNode['debugLayoutInfo']>['constraint'];
+    shownBounds: ReturnType<SceneNode['debugLayoutInfo']>['shownBounds'];
+    layoutOnly: boolean;
+}
+
+export interface DebugLayoutReport {
+    spacing: SpacingPreset;
+    theme: CanvasTheme;
+    nodes: DebugLayoutNode[];
+}
+
+export interface SpacingPreviewOptions {
+    maxPairs?: number;
+    color?: string;
+    fontSize?: number;
+}
+
+export type SpacingPreviewAnnotation = {
+    fromId: number;
+    toId: number;
+    axis: 'x' | 'y';
+    gap: number;
+    targetGap: number;
+};
+
+export type SpacingPreviewGroup = Group & {
+    readonly annotations: SpacingPreviewAnnotation[];
+};
+
+type SpacingCandidate = SpacingPreviewAnnotation & {
+    fromEdge: number;
+    toEdge: number;
+    overlapMin: number;
+    overlapMax: number;
+    score: number;
+};
 
 const BUILTIN_THEMES: Record<string, CanvasTheme> = {
     diagram: {
@@ -120,6 +192,7 @@ export class ZCanvas {
     private _lastPointerPositions = new Map<number, Vec2>();
     private _dragState: DragState | null = null;
     private _theme: CanvasTheme = {};
+    private _spacing: SpacingPreset = getSpacingPreset('comfortable');
 
     constructor(selector: string | HTMLElement, options: CanvasOptions = {}) {
         const container =
@@ -296,31 +369,67 @@ export class ZCanvas {
         return this._scene.container(opts);
     }
 
+    panel(opts: ContainerOptions = {}): ContainerGroup {
+        return this._scene.panel(opts);
+    }
+
+    card(title: string, opts: CardOptions = {}): CardGroup {
+        return this._scene.card(title, opts);
+    }
+
+    callout(text: string, opts: CalloutOptions = {}): CalloutGroup {
+        return this._scene.callout(text, opts);
+    }
+
+    legend(items: LegendItem[], opts: LegendOptions = {}): LegendGroup {
+        return this._scene.legend(items, opts);
+    }
+
+    labelNode(target: SceneNode, content: string, opts: LabelNodeOptions = {}): Text {
+        return this._scene.labelNode(target, content, opts);
+    }
+
+    labelEdge(edge: Line, content: string, opts: LabelEdgeOptions = {}): Text {
+        return this._scene.labelEdge(edge, content, opts);
+    }
+
+    flow(steps: FlowStep[], opts: FlowOptions = {}): FlowGroup {
+        return this._scene.flow(steps, opts);
+    }
+
+    swimlane(lanes: SwimlaneSpec[], opts: SwimlaneOptions = {}): SwimlaneGroup {
+        return this._scene.swimlane(lanes, opts);
+    }
+
+    compose(command: string, refs: ComposeRefs, opts: ComposeOptions = {}): SceneNode {
+        return this._scene.compose(command, refs, opts);
+    }
+
     row(opts?: RowLayoutOptions): Group;
     row(children: SceneNode[], opts?: RowLayoutOptions): Group;
     row(childrenOrOpts: SceneNode[] | RowLayoutOptions = {}, opts: RowLayoutOptions = {}): Group {
         if (Array.isArray(childrenOrOpts)) {
-            return this._scene.row(childrenOrOpts, opts);
+            return this._scene.row(childrenOrOpts, this._withDefaultGap(opts));
         }
-        return this._scene.row(childrenOrOpts);
+        return this._scene.row(this._withDefaultGap(childrenOrOpts));
     }
 
     column(opts?: ColumnLayoutOptions): Group;
     column(children: SceneNode[], opts?: ColumnLayoutOptions): Group;
     column(childrenOrOpts: SceneNode[] | ColumnLayoutOptions = {}, opts: ColumnLayoutOptions = {}): Group {
         if (Array.isArray(childrenOrOpts)) {
-            return this._scene.column(childrenOrOpts, opts);
+            return this._scene.column(childrenOrOpts, this._withDefaultGap(opts));
         }
-        return this._scene.column(childrenOrOpts);
+        return this._scene.column(this._withDefaultGap(childrenOrOpts));
     }
 
     grid(opts?: GridLayoutOptions): Group;
     grid(children: SceneNode[], opts?: GridLayoutOptions): Group;
     grid(childrenOrOpts: SceneNode[] | GridLayoutOptions = {}, opts: GridLayoutOptions = {}): Group {
         if (Array.isArray(childrenOrOpts)) {
-            return this._scene.grid(childrenOrOpts, opts);
+            return this._scene.grid(childrenOrOpts, this._withDefaultGap(opts));
         }
-        return this._scene.grid(childrenOrOpts);
+        return this._scene.grid(this._withDefaultGap(childrenOrOpts));
     }
 
     stack(opts?: StackLayoutOptions): Group;
@@ -345,6 +454,21 @@ export class ZCanvas {
             edge: { ...(this._theme.edge ?? {}), ...(next.edge ?? {}) },
         };
         return this;
+    }
+
+    applyStarterTheme(name: StarterThemeName): this {
+        const preset = getStarterTheme(name);
+        this.spacingPreset(preset.spacing);
+        return this.theme(preset.theme);
+    }
+
+    spacingPreset(name: SpacingPresetName): this {
+        this._spacing = getSpacingPreset(name);
+        return this;
+    }
+
+    getSpacingPreset(): SpacingPreset {
+        return { ...this._spacing };
     }
 
     /**
@@ -425,6 +549,94 @@ export class ZCanvas {
         return snapshot;
     }
 
+    debugLayout(): DebugLayoutReport {
+        this._scene.measure();
+        const nodes: DebugLayoutNode[] = [];
+        const toTuple = (box: BBox): [number, number, number, number] => [
+            box.minX,
+            box.minY,
+            box.maxX,
+            box.maxY,
+        ];
+
+        const visit = (node: SceneNode): void => {
+            if (node.type !== 'scene') {
+                const info = node.debugLayoutInfo();
+                const position = node.getPosition();
+                const size = node.getSize();
+                nodes.push({
+                    id: node.id,
+                    type: node.type,
+                    parentId: node.parent?.id ?? null,
+                    position: [position.x, position.y],
+                    size: [size.x, size.y],
+                    bounds: {
+                        layout: toTuple(node.getBounds({ space: 'world', kind: 'layout' })),
+                        visual: toTuple(node.getBounds({ space: 'world', kind: 'visual' })),
+                        hit: toTuple(node.getBounds({ space: 'world', kind: 'hit' })),
+                    },
+                    constraint: info.constraint,
+                    shownBounds: info.shownBounds,
+                    layoutOnly: info.layoutOnly,
+                });
+            }
+
+            for (const child of node.children) {
+                visit(child);
+            }
+        };
+
+        visit(this._scene);
+        return {
+            spacing: this.getSpacingPreset(),
+            theme: this._cloneTheme(this._theme),
+            nodes,
+        };
+    }
+
+    previewSpacing(name?: SpacingPresetName, opts: SpacingPreviewOptions = {}): SpacingPreviewGroup {
+        const target = name ? getSpacingPreset(name) : this.getSpacingPreset();
+        const report = this.debugLayout();
+        const candidates = this._spacingCandidates(report.nodes, target.gap)
+            .slice(0, Math.max(1, opts.maxPairs ?? 8));
+        const overlay = this.group() as SpacingPreviewGroup;
+        const color = opts.color ?? '#f59e0b';
+        const fontSize = opts.fontSize ?? 10;
+
+        for (const item of candidates) {
+            if (item.axis === 'x') {
+                const y = (item.overlapMin + item.overlapMax) / 2;
+                overlay.line([item.fromEdge, y], [item.toEdge, y]).stroke(color, 1).dashed([4, 3]);
+                overlay.text(`${Math.round(item.gap)} / ${target.gap}`, [(item.fromEdge + item.toEdge) / 2, y - 6])
+                    .fontSize(fontSize)
+                    .fill(color)
+                    .textAlign('center')
+                    .textBaseline('bottom');
+            } else {
+                const x = (item.overlapMin + item.overlapMax) / 2;
+                overlay.line([x, item.fromEdge], [x, item.toEdge]).stroke(color, 1).dashed([4, 3]);
+                overlay.text(`${Math.round(item.gap)} / ${target.gap}`, [x + 6, (item.fromEdge + item.toEdge) / 2])
+                    .fontSize(fontSize)
+                    .fill(color)
+                    .textAlign('left')
+                    .textBaseline('middle');
+            }
+        }
+
+        Object.defineProperty(overlay, 'annotations', {
+            value: candidates.map((item) => ({
+                fromId: item.fromId,
+                toId: item.toId,
+                axis: item.axis,
+                gap: item.gap,
+                targetGap: target.gap,
+            })),
+            enumerable: true,
+        });
+
+        return overlay;
+    }
+
     private _mergeNodeOptions(opts: NodeOptions): NodeOptions {
         return {
             ...(this._theme.node ?? {}),
@@ -441,6 +653,83 @@ export class ZCanvas {
                 ...(opts.routeOptions ?? {}),
             },
         };
+    }
+
+    private _cloneTheme(theme: CanvasTheme): CanvasTheme {
+        return {
+            node: theme.node ? { ...theme.node } : undefined,
+            edge: theme.edge
+                ? {
+                    ...theme.edge,
+                    routeOptions: theme.edge.routeOptions ? { ...theme.edge.routeOptions } : undefined,
+                }
+                : undefined,
+        };
+    }
+
+    private _withDefaultGap<T extends { gap?: UnitValue | UnitPoint }>(opts: T = {} as T): T {
+        if (opts.gap !== undefined) return opts;
+        return { ...opts, gap: this._spacing.gap };
+    }
+
+    private _spacingCandidates(nodes: DebugLayoutNode[], targetGap: number): SpacingCandidate[] {
+        const candidates: SpacingCandidate[] = [];
+        const items = nodes.filter((node) => {
+            if (node.layoutOnly) return false;
+            if (node.type === 'line' || node.type === 'text' || node.type === 'scene') return false;
+            const [minX, minY, maxX, maxY] = node.bounds.layout;
+            return maxX > minX && maxY > minY;
+        });
+
+        for (let i = 0; i < items.length; i++) {
+            for (let j = i + 1; j < items.length; j++) {
+                const a = items[i];
+                const b = items[j];
+                this._pushSpacingCandidate(candidates, a, b, 'x', targetGap);
+                this._pushSpacingCandidate(candidates, b, a, 'x', targetGap);
+                this._pushSpacingCandidate(candidates, a, b, 'y', targetGap);
+                this._pushSpacingCandidate(candidates, b, a, 'y', targetGap);
+            }
+        }
+
+        return candidates.sort((a, b) => a.score - b.score);
+    }
+
+    private _pushSpacingCandidate(
+        out: SpacingCandidate[],
+        a: DebugLayoutNode,
+        b: DebugLayoutNode,
+        axis: 'x' | 'y',
+        targetGap: number,
+    ): void {
+        const ab = a.bounds.layout;
+        const bb = b.bounds.layout;
+        const aMin = axis === 'x' ? ab[0] : ab[1];
+        const aMax = axis === 'x' ? ab[2] : ab[3];
+        const bMin = axis === 'x' ? bb[0] : bb[1];
+        if (bMin < aMax) return;
+
+        const aCrossMin = axis === 'x' ? ab[1] : ab[0];
+        const aCrossMax = axis === 'x' ? ab[3] : ab[2];
+        const bCrossMin = axis === 'x' ? bb[1] : bb[0];
+        const bCrossMax = axis === 'x' ? bb[3] : bb[2];
+        const overlapMin = Math.max(aCrossMin, bCrossMin);
+        const overlapMax = Math.min(aCrossMax, bCrossMax);
+        if (overlapMax <= overlapMin) return;
+
+        const gap = bMin - aMax;
+        out.push({
+            fromId: a.id,
+            toId: b.id,
+            axis,
+            gap,
+            targetGap,
+            fromEdge: aMax,
+            toEdge: bMin,
+            overlapMin,
+            overlapMax,
+            score: Math.abs(gap - targetGap),
+        });
     }
 
     private _attachPointerDelegation(): void {

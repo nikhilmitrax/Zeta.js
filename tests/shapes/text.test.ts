@@ -76,4 +76,15 @@ describe('Text shape', () => {
         t.measureWithContext(fakeCtx);
         expect(t.computeLocalBBox().equals(new BBox(0, -7, 20, 3))).toBe(true);
     });
+
+    it('reuses SVG renderer metrics when available', () => {
+        const t = new Text('AB-svg-measured').fontSize(10);
+        const fakeSvgText = {
+            getComputedTextLength: () => 32,
+            getBBox: () => ({ width: 30, height: 12 }),
+        } as unknown as SVGTextElement;
+
+        t.measureWithSVGTextElement(fakeSvgText);
+        expect(t.computeLocalBBox().equals(new BBox(0, -9.6, 32, 2.4))).toBe(true);
+    });
 });

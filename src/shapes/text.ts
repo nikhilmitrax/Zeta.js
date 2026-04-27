@@ -135,6 +135,46 @@ export class Text extends SceneNode {
         return this;
     }
 
+    /**
+     * Capture renderer-backed metrics when a renderer has a native text source
+     * other than Canvas2D, such as SVG getBBox/getComputedTextLength.
+     */
+    measureWithMetrics(width: number, ascent: number, descent: number): this {
+        if (![width, ascent, descent].every(Number.isFinite)) return this;
+        if (width < 0 || ascent < 0 || descent < 0) return this;
+
+        Text._metricsCache.set(this._metricsKey(this.getRenderedContent()), {
+            width,
+            ascent,
+            descent,
+        });
+        return this;
+    }
+
+    measureWithSVGTextElement(el: SVGTextElement): this {
+        const fontSize = this._fontSize.get();
+        const displayScale = this.isLatexDisplayMode() ? 1.15 : 1;
+        const fallbackHeight = fontSize * 1.2 * displayScale;
+
+        let width = 0;
+        let height = fallbackHeight;
+        try {
+            if (typeof el.getComputedTextLength === 'function') {
+                width = el.getComputedTextLength();
+            }
+            if (typeof el.getBBox === 'function') {
+                const bbox = el.getBBox();
+                width = Math.max(width, bbox.width);
+                height = bbox.height || height;
+            }
+        } catch {
+            return this;
+        }
+
+        if (width <= 0) return this;
+        return this.measureWithMetrics(width, height * 0.8, height * 0.2);
+    }
+
     private _metricsKey(content: string): string {
         return [
             content,

@@ -21,6 +21,9 @@ export {
     type BoundsSpace,
     type BoundsOptions,
     type PositionOptions,
+    type CenterInOptions,
+    type KeepInsideOptions,
+    type NodeLayoutDebugInfo,
 } from './core/node';
 export {
     Group,
@@ -39,6 +42,26 @@ export {
     type StackLayoutOptions,
     type ContainerOptions,
     type ContainerGroup,
+    type FitContentOptions,
+    type OverflowPolicy,
+    type CardOptions,
+    type CardGroup,
+    type CalloutOptions,
+    type CalloutGroup,
+    type LegendItem,
+    type LegendOptions,
+    type LegendGroup,
+    type LabelNodeOptions,
+    type LabelEdgeOptions,
+    type FlowStep,
+    type FlowOptions,
+    type FlowGroup,
+    type SwimlaneSpec,
+    type SwimlaneOptions,
+    type SwimlaneLaneGroup,
+    type SwimlaneGroup,
+    type ComposeRefs,
+    type ComposeOptions,
     type NodePortSide,
     type NodePortSpec,
     type NodeOptions,
@@ -61,6 +84,14 @@ export {
     type UnitSize,
 } from './core/units';
 export {
+    getSpacingPreset,
+    getStarterTheme,
+    type SpacingPreset,
+    type SpacingPresetName,
+    type StarterThemeName,
+    type StarterThemePreset,
+} from './core/presets';
+export {
     PositionConstraint,
     PinConstraint,
     explainConstraintTrace,
@@ -73,6 +104,7 @@ export {
     type ConstraintTraceEvent,
     type ConstraintTraceHook,
     type ConstraintTraceExplainerHook,
+    type ConstraintDebugInfo,
 } from './core/constraints';
 
 // Re-export math
@@ -115,6 +147,11 @@ export {
     type CanvasTheme,
     type DebugOptions,
     type DebugSnapshot,
+    type DebugLayoutNode,
+    type DebugLayoutReport,
+    type SpacingPreviewOptions,
+    type SpacingPreviewAnnotation,
+    type SpacingPreviewGroup,
 } from './canvas';
 
 // ─── Plugin System ──────────────────────────────────────────────────────────

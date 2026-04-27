@@ -26,6 +26,16 @@ export type ConstraintDirection = 'rightOf' | 'leftOf' | 'above' | 'below';
 export type ConstraintKind = 'position' | 'pin' | 'alignment';
 export type ConstraintTraceTrigger = 'init' | 'target-layout' | 'self-layout' | 'parent-layout';
 
+export interface ConstraintDebugInfo {
+    kind: ConstraintKind;
+    targetId: number;
+    targetType: string;
+    direction?: ConstraintDirection;
+    align?: AlignOption;
+    gap?: UnitValue;
+    offset?: UnitPoint;
+}
+
 export interface ConstraintTraceEvent {
     kind: ConstraintKind;
     trigger: ConstraintTraceTrigger;
@@ -137,6 +147,7 @@ export class PositionConstraint {
     private _parentUnsub: (() => void) | null = null;
     private _watchedParent: SceneNode | null = null;
     private _applyQueued = false;
+    private _disposed = false;
 
     constructor(
         private readonly _node: SceneNode,
@@ -186,6 +197,7 @@ export class PositionConstraint {
         this._applyQueued = true;
         queueMutationEffect(() => {
             this._applyQueued = false;
+            if (this._disposed) return;
             this._apply(trigger);
         }, 'high');
         if (!isBatchingSceneMutations()) {
@@ -289,8 +301,20 @@ export class PositionConstraint {
 
     /** Detach the reactive subscription. */
     dispose(): void {
+        this._disposed = true;
         this._unsubscribe?.();
         this._unsubscribe = null;
+    }
+
+    debugInfo(): ConstraintDebugInfo {
+        return {
+            kind: 'position',
+            targetId: this._target.id,
+            targetType: this._target.type,
+            direction: this._direction,
+            align: this._align,
+            gap: this._gapSpec.raw,
+        };
     }
 }
 
@@ -304,6 +328,7 @@ export class PinConstraint {
     private _parentUnsub: (() => void) | null = null;
     private _watchedParent: SceneNode | null = null;
     private _applyQueued = false;
+    private _disposed = false;
 
     constructor(
         private readonly _node: SceneNode,
@@ -350,6 +375,7 @@ export class PinConstraint {
         this._applyQueued = true;
         queueMutationEffect(() => {
             this._applyQueued = false;
+            if (this._disposed) return;
             this._apply(trigger);
         }, 'high');
         if (!isBatchingSceneMutations()) {
@@ -381,8 +407,18 @@ export class PinConstraint {
     }
 
     dispose(): void {
+        this._disposed = true;
         this._unsubscribe?.();
         this._unsubscribe = null;
+    }
+
+    debugInfo(): ConstraintDebugInfo {
+        return {
+            kind: 'pin',
+            targetId: this._target.id,
+            targetType: this._target.type,
+            offset: [this._offsetSpec[0].raw, this._offsetSpec[1].raw],
+        };
     }
 }
 
@@ -398,6 +434,7 @@ export class AlignmentConstraint {
     private _parentUnsub: (() => void) | null = null;
     private _watchedParent: SceneNode | null = null;
     private _applyQueued = false;
+    private _disposed = false;
 
     constructor(
         private readonly _node: SceneNode,
@@ -445,6 +482,7 @@ export class AlignmentConstraint {
         this._applyQueued = true;
         queueMutationEffect(() => {
             this._applyQueued = false;
+            if (this._disposed) return;
             this._apply(trigger);
         }, 'high');
         if (!isBatchingSceneMutations()) {
@@ -504,7 +542,17 @@ export class AlignmentConstraint {
     }
 
     dispose(): void {
+        this._disposed = true;
         this._unsubscribe?.();
         this._unsubscribe = null;
+    }
+
+    debugInfo(): ConstraintDebugInfo {
+        return {
+            kind: 'alignment',
+            targetId: this._target.id,
+            targetType: this._target.type,
+            offset: [this._offsetSpec[0].raw, this._offsetSpec[1].raw],
+        };
     }
 }
