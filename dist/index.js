@@ -936,6 +936,63 @@ function batchSceneMutations(fn) {
 }
 
 // src/core/constraints.ts
+var constraintTraceHook = null;
+function setConstraintTraceHook(hook) {
+  constraintTraceHook = hook;
+}
+function emitConstraintTrace(event) {
+  if (!constraintTraceHook) return;
+  try {
+    constraintTraceHook(event);
+  } catch {
+  }
+}
+function describeNodeForTrace(node) {
+  return `${node.type}#${node.id}`;
+}
+function describeTriggerForTrace(trigger) {
+  switch (trigger) {
+    case "init":
+      return "after initialization";
+    case "target-layout":
+      return "after the target layout changed";
+    case "self-layout":
+      return "after its own layout changed";
+    case "parent-layout":
+      return "after its parent layout changed";
+  }
+}
+function describeConstraintForTrace(event) {
+  if (event.kind === "position") {
+    const direction = event.detail?.direction;
+    switch (direction) {
+      case "rightOf":
+        return "to stay right of";
+      case "leftOf":
+        return "to stay left of";
+      case "above":
+        return "to stay above";
+      case "below":
+        return "to stay below";
+      default:
+        return "to preserve relative placement with";
+    }
+  }
+  if (event.kind === "pin") {
+    return "to stay pinned to";
+  }
+  return "to stay aligned with";
+}
+function explainConstraintTrace(event) {
+  const subject = describeNodeForTrace(event.node);
+  const target = describeNodeForTrace(event.target);
+  const relation = describeConstraintForTrace(event);
+  const trigger = describeTriggerForTrace(event.trigger);
+  if (event.applied) {
+    return `${subject} moved ${relation} ${target} ${trigger}.`;
+  }
+  return `${subject} stayed in place while checking ${relation} ${target} ${trigger}.`;
+}
 function toParentLocal(node, world) {
   if (!node.parent) return world;
   return node.parent.getWorldTransform().invert().transformPoint(world);
@@ -962,13 +1019,13 @@ var PositionConstraint = class {
     this._applyQueued = false;
     this._gapSpec = parseUnitValue(gap, "constraint gap");
     this._syncParentSubscription();
-    this._requestApply();
+    this._requestApply("init");
     const unsubTarget = this._target._subscribeLayout(() => {
-      this._requestApply();
+      this._requestApply("target-layout");
     });
     const unsubSelf = this._node._subscribeLayout(() => {
       this._syncParentSubscription();
-      this._requestApply();
+      this._requestApply("self-layout");
     });
     this._unsubscribe = () => {
       unsubTarget();
@@ -986,22 +1043,22 @@ var PositionConstraint = class {
     this._watchedParent = parent;
     if (!parent) return;
     this._parentUnsub = parent.watchLayout(() => {
-      this._requestApply();
+      this._requestApply("parent-layout");
     });
   }
-  _requestApply() {
+  _requestApply(trigger) {
     if (this._applyQueued) return;
     this._applyQueued = true;
     queueMutationEffect(() => {
       this._applyQueued = false;
-      this._apply();
+      this._apply(trigger);
     }, "high");
     if (!isBatchingSceneMutations()) {
       flushMutationEffects();
     }
   }
   /** Recalculate and apply the constrained position. */
-  _apply() {
+  _apply(trigger) {
     const targetBBox = bboxInParentSpace(this._node, this._target.computeWorldBBox());
     const selfBBox = bboxInParentSpace(this._node, this._node.computeWorldBBox());
     let x;
@@ -1049,10 +1106,25 @@ var PositionConstraint = class {
         break;
       }
     }
+    const previous = this._node._position.get();
     const next = new Vec2(x, y);
-    if (!this._node._position.get().equals(next)) {
+    const applied = !previous.equals(next);
+    if (applied) {
       this._node.pos(next.x, next.y);
     }
+    emitConstraintTrace({
+      kind: "position",
+      trigger,
+      node: this._node,
+      target: this._target,
+      applied,
+      previousPosition: previous,
+      nextPosition: next,
+      detail: {
+        direction: this._direction,
+        align: this._align
+      }
+    });
   }
   /**
    * Compute the perpendicular-axis position based on alignment.
@@ -1087,13 +1159,13 @@ var PinConstraint = class {
     this._applyQueued = false;
     this._offsetSpec = parseUnitPoint(offset ?? [0, 0], "pin offset.x", "pin offset.y");
     this._syncParentSubscription();
-    this._requestApply();
+    this._requestApply("init");
     const unsubTarget = this._target._subscribeLayout(() => {
-      this._requestApply();
+      this._requestApply("target-layout");
     });
     const unsubSelf = this._node._subscribeLayout(() => {
       this._syncParentSubscription();
-      this._requestApply();
+      this._requestApply("self-layout");
     });
     this._unsubscribe = () => {
       unsubTarget();
@@ -1111,30 +1183,41 @@ var PinConstraint = class {
     this._watchedParent = parent;
     if (!parent) return;
     this._parentUnsub = parent.watchLayout(() => {
-      this._requestApply();
+      this._requestApply("parent-layout");
     });
   }
-  _requestApply() {
+  _requestApply(trigger) {
     if (this._applyQueued) return;
     this._applyQueued = true;
     queueMutationEffect(() => {
       this._applyQueued = false;
-      this._apply();
+      this._apply(trigger);
     }, "high");
     if (!isBatchingSceneMutations()) {
       flushMutationEffects();
     }
   }
-  _apply() {
+  _apply(trigger) {
     const [ax, ay] = this._anchorFn();
     const localAnchor = toParentLocal(this._node, new Vec2(ax, ay));
+    const previous = this._node._position.get();
     const next = new Vec2(
       localAnchor.x + this._node._resolveUnitSpec(this._offsetSpec[0], "x", "pin offset.x"),
       localAnchor.y + this._node._resolveUnitSpec(this._offsetSpec[1], "y", "pin offset.y")
     );
-    if (!this._node._position.get().equals(next)) {
+    const applied = !previous.equals(next);
+    if (applied) {
       this._node.pos(next.x, next.y);
     }
+    emitConstraintTrace({
+      kind: "pin",
+      trigger,
+      node: this._node,
+      target: this._target,
+      applied,
+      previousPosition: previous,
+      nextPosition: next
+    });
   }
   dispose() {
     this._unsubscribe?.();
@@ -1153,13 +1236,13 @@ var AlignmentConstraint = class {
     this._applyQueued = false;
     this._offsetSpec = parseUnitPoint(offset ?? [0, 0], "align offset.x", "align offset.y");
     this._syncParentSubscription();
-    this._requestApply();
+    this._requestApply("init");
     const unsubTarget = this._target._subscribeLayout(() => {
-      this._requestApply();
+      this._requestApply("target-layout");
     });
     const unsubSelf = this._node._subscribeLayout(() => {
       this._syncParentSubscription();
-      this._requestApply();
+      this._requestApply("self-layout");
     });
     this._unsubscribe = () => {
       unsubTarget();
@@ -1177,26 +1260,36 @@ var AlignmentConstraint = class {
     this._watchedParent = parent;
     if (!parent) return;
     this._parentUnsub = parent.watchLayout(() => {
-      this._requestApply();
+      this._requestApply("parent-layout");
     });
   }
-  _requestApply() {
+  _requestApply(trigger) {
     if (this._applyQueued) return;
     this._applyQueued = true;
     queueMutationEffect(() => {
       this._applyQueued = false;
-      this._apply();
+      this._apply(trigger);
     }, "high");
     if (!isBatchingSceneMutations()) {
       flushMutationEffects();
     }
   }
-  _apply() {
+  _apply(trigger) {
     const [targetX, targetY] = this._targetAnchorFn();
     const [selfX, selfY] = this._selfAnchorFn();
+    const previous = this._node._position.get();
     const dx = targetX - selfX;
     const dy = targetY - selfY;
     if (Math.abs(dx) < 1e-3 && Math.abs(dy) < 1e-3) {
+      emitConstraintTrace({
+        kind: "alignment",
+        trigger,
+        node: this._node,
+        target: this._target,
+        applied: false,
+        previousPosition: previous,
+        nextPosition: previous
+      });
       return;
     }
     const currentPos = this._node._position.get();
@@ -1207,9 +1300,19 @@ var AlignmentConstraint = class {
       nextLocalPos.x + this._node._resolveUnitSpec(this._offsetSpec[0], "x", "align offset.x"),
       nextLocalPos.y + this._node._resolveUnitSpec(this._offsetSpec[1], "y", "align offset.y")
     );
-    if (!this._node._position.get().equals(next)) {
+    const applied = !previous.equals(next);
+    if (applied) {
       this._node.pos(next.x, next.y);
     }
+    emitConstraintTrace({
+      kind: "alignment",
+      trigger,
+      node: this._node,
+      target: this._target,
+      applied,
+      previousPosition: previous,
+      nextPosition: next
+    });
   }
   dispose() {
     this._unsubscribe?.();
@@ -1377,6 +1480,7 @@ function flattenPath(shape, subdivisions = 16) {
   return out;
 }
 var nextId = 0;
+var HIT_BOUNDS_PADDING = 2;
 var SceneNode = class {
   constructor(position = Vec2.zero()) {
     // ── Tree structure ──
@@ -1386,6 +1490,7 @@ var SceneNode = class {
     this._anchor = null;
     // ── Constraints ──
     this._constraint = null;
+    this._constraintTarget = null;
     this._layoutListeners = /* @__PURE__ */ new Set();
     this._eventHandlers = /* @__PURE__ */ new Map();
     this._draggable = null;
@@ -1404,6 +1509,7 @@ var SceneNode = class {
     // ── Dirty tracking for render ──
     this._renderDirty = true;
     this._onDirty = null;
+    this._shownBoundsKinds = /* @__PURE__ */ new Set();
     this.id = nextId++;
     this._positionSpec = parseUnitPoint(
       [position.x, position.y],
@@ -1414,6 +1520,8 @@ var SceneNode = class {
     this._rotation = new Signal(0);
     this._scale = new Signal(new Vec2(1, 1));
     this._visible = new Signal(true);
+    this._layoutOnly = new Signal(false);
+    this._minHitSize = new Signal(null);
     this.style = new StyleManager();
     const markDirty = () => this._markTransformDirty();
     this._position.subscribe(markDirty);
@@ -1425,6 +1533,8 @@ var SceneNode = class {
     this.style._dashPattern.subscribe(markRenderDirty);
     this.style._opacity.subscribe(markRenderDirty);
     this._visible.subscribe(markRenderDirty);
+    this._layoutOnly.subscribe(() => this._markRenderDirty(true));
+    this._minHitSize.subscribe(markRenderDirty);
   }
   /**
    * Reference size for descendants resolving percentage-based units.
@@ -1547,6 +1657,76 @@ var SceneNode = class {
     this._visible.set(v);
     return this;
   }
+  /**
+   * Mark this node as layout-only: it still affects layout bounds/constraints
+   * but is excluded from visual and hit-test bounds.
+   */
+  layoutOnly(enabled = true) {
+    this._layoutOnly.set(enabled);
+    return this;
+  }
+  isLayoutOnly() {
+    return this._layoutOnly.get();
+  }
+  /**
+   * Guarantee a minimum hit-target size (local-space) for easier selection.
+   * Set `null` to restore default hit bounds behavior.
+   */
+  minHitSize(size) {
+    if (size === null) {
+      this._minHitSize.set(null);
+      return this;
+    }
+    const vec = typeof size === "number" ? new Vec2(size, size) : new Vec2(size[0], size[1]);
+    const next = new Vec2(Math.max(0, vec.x), Math.max(0, vec.y));
+    this._minHitSize.set(next);
+    return this;
+  }
+  getMinHitSize() {
+    return this._minHitSize.get();
+  }
+  /**
+   * Show one or more bounds overlays for this node while composing/debugging.
+   * Overlays are renderer-level visuals and do not affect hit-testing/layout.
+   */
+  showBounds(kind = "layout", enabled = true) {
+    const kinds = Array.isArray(kind) ? kind : [kind];
+    let changed = false;
+    for (const item of kinds) {
+      if (enabled) {
+        if (!this._shownBoundsKinds.has(item)) {
+          this._shownBoundsKinds.add(item);
+          changed = true;
+        }
+      } else if (this._shownBoundsKinds.delete(item)) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      this._markRenderDirty();
+    }
+    return this;
+  }
+  hideBounds(kind) {
+    if (!kind) {
+      if (this._shownBoundsKinds.size > 0) {
+        this._shownBoundsKinds.clear();
+        this._markRenderDirty();
+      }
+      return this;
+    }
+    return this.showBounds(kind, false);
+  }
+  isShowingBounds(kind) {
+    if (!kind) {
+      return this._shownBoundsKinds.size > 0;
+    }
+    return this._shownBoundsKinds.has(kind);
+  }
+  /** @internal */
+  _getShownBoundsKinds() {
+    return [...this._shownBoundsKinds];
+  }
   // ── Chainable style API ──
   fill(color) {
     this.style._fill.set(color);
@@ -1660,9 +1840,14 @@ var SceneNode = class {
    */
   containsWorldPoint(x, y, tolerance = 2) {
     if (!this._visible.get()) return false;
+    if (this.isLayoutOnly()) return false;
     const world = new Vec2(x, y);
+    const hit = this.getBounds({ space: "world", kind: "hit" });
+    if (!hit.containsPoint(world)) return false;
     const local = this.getWorldTransform().invert().transformPoint(world);
-    return this._containsLocalPoint(local, tolerance);
+    if (this._containsLocalPoint(local, tolerance)) return true;
+    if (!this._minHitSize.get()) return false;
+    return this._computeLocalBounds("hit").containsPoint(local);
   }
   animate(props, opts = {}) {
     this.stopAnimation();
@@ -1800,57 +1985,49 @@ var SceneNode = class {
    * Creates a reactive constraint: if `target` moves, this node follows.
    */
   rightOf(target, opts) {
-    this._disposeConstraint();
-    this._constraint = new PositionConstraint(
+    return this._setConstraint(target, () => new PositionConstraint(
       this,
       target,
       "rightOf",
       opts?.gap ?? 0,
       opts?.align ?? "center"
-    );
-    return this;
+    ));
   }
   /**
    * Position this node to the left of `target`.
    */
   leftOf(target, opts) {
-    this._disposeConstraint();
-    this._constraint = new PositionConstraint(
+    return this._setConstraint(target, () => new PositionConstraint(
       this,
       target,
       "leftOf",
       opts?.gap ?? 0,
       opts?.align ?? "center"
-    );
-    return this;
+    ));
   }
   /**
    * Position this node above `target`.
    */
   above(target, opts) {
-    this._disposeConstraint();
-    this._constraint = new PositionConstraint(
+    return this._setConstraint(target, () => new PositionConstraint(
       this,
       target,
       "above",
       opts?.gap ?? 0,
       opts?.align ?? "center"
-    );
-    return this;
+    ));
   }
   /**
    * Position this node below `target`.
    */
   below(target, opts) {
-    this._disposeConstraint();
-    this._constraint = new PositionConstraint(
+    return this._setConstraint(target, () => new PositionConstraint(
       this,
       target,
       "below",
       opts?.gap ?? 0,
       opts?.align ?? "center"
-    );
-    return this;
+    ));
   }
   /**
    * Set absolute position (shorthand for `.pos()`).
@@ -1861,10 +2038,8 @@ var SceneNode = class {
     return this.pos(position);
   }
   pin(target, anchorOrFn, opts) {
-    this._disposeConstraint();
     const anchorFn = typeof anchorOrFn === "string" ? () => target.anchor.get(anchorOrFn) : anchorOrFn;
-    this._constraint = new PinConstraint(this, target, anchorFn, opts?.offset);
-    return this;
+    return this._setConstraint(target, () => new PinConstraint(this, target, anchorFn, opts?.offset));
   }
   /**
    * Aligns a specific anchor on this node to a specific anchor on the target node.
@@ -1872,15 +2047,13 @@ var SceneNode = class {
    * `this.anchor.get(selfAnchor)` explicitly matches `target.anchor.get(targetAnchor)`.
    */
   alignTarget(target, selfAnchor, targetAnchor, opts) {
-    this._disposeConstraint();
-    this._constraint = new AlignmentConstraint(
+    return this._setConstraint(target, () => new AlignmentConstraint(
       this,
       target,
       () => this.anchor.get(selfAnchor),
       () => target.anchor.get(targetAnchor),
       opts?.offset
-    );
-    return this;
+    ));
   }
   follow(target, relationOrAnchor = "center", opts) {
     if (relationOrAnchor === "above") {
@@ -1906,6 +2079,51 @@ var SceneNode = class {
   _disposeConstraint() {
     this._constraint?.dispose();
     this._constraint = null;
+    this._constraintTarget = null;
+  }
+  _setConstraint(target, factory) {
+    this._assertAcyclicConstraintTarget(target);
+    this._disposeConstraint();
+    this._constraint = factory();
+    this._constraintTarget = target;
+    return this;
+  }
+  _assertAcyclicConstraintTarget(target) {
+    if (target === this) {
+      throw new Error(
+        `Zeta: constraint cycle detected: ${this._formatConstraintPath([this, this])}. ${this._formatConstraintRemediationHint([this, this], this)}`
+      );
+    }
+    const chain = [this, target];
+    const visited = /* @__PURE__ */ new Set([this.id]);
+    let cursor = target;
+    while (cursor) {
+      const current = cursor;
+      if (visited.has(current.id)) {
+        if (current === this) {
+          throw new Error(
+            `Zeta: constraint cycle detected: ${this._formatConstraintPath(chain)}. ${this._formatConstraintRemediationHint(chain, this)}`
+          );
+        }
+        const loopStart = chain.findIndex((n) => n.id === current.id);
+        const loopPath = loopStart >= 0 ? [...chain.slice(loopStart), current] : [current, current];
+        throw new Error(
+          `Zeta: existing constraint cycle detected: ${this._formatConstraintPath(loopPath)}. ${this._formatConstraintRemediationHint(loopPath, this)}`
+        );
+      }
+      visited.add(current.id);
+      const next = current._constraintTarget;
+      if (!next) return;
+      chain.push(next);
+      cursor = next;
+    }
+  }
+  _formatConstraintPath(path) {
+    return path.map((node) => `${node.type}#${node.id}`).join(" -> ");
+  }
+  _formatConstraintRemediationHint(loopPath, attemptedNode) {
+    const cycleText = this._formatConstraintPath(loopPath);
+    return `Hint: break one dependency in ${cycleText} before adding a new link from ${attemptedNode.type}#${attemptedNode.id}. You can clear one side with .at([x, y]) or constrain both nodes to a neutral parent/group node instead of each other.`;
   }
   _containsLocalPoint(local, tolerance) {
     if (this.type === "line") {
@@ -2024,7 +2242,6 @@ var SceneNode = class {
   }
   /** Compute world-space bounding box (cached, invalidated on transform changes). */
   computeWorldBBox() {
-    this._settleForMeasurement();
     if (this._worldBBoxDirty) {
       const local = this.computeLocalBBox();
       if (local.isEmpty()) {
@@ -2038,6 +2255,59 @@ var SceneNode = class {
       this._worldBBoxDirty = false;
     }
     return this._cachedWorldBBox;
+  }
+  _computeLocalBounds(kind) {
+    const layout = this.computeLocalBBox();
+    if (layout.isEmpty()) return layout;
+    if (kind === "layout") return layout;
+    if (this.isLayoutOnly()) return BBox.empty();
+    const stroke = this.style._stroke.get();
+    const strokeHalf = stroke && stroke.width > 0 ? stroke.width / 2 : 0;
+    const visual = strokeHalf > 0 ? layout.expand(strokeHalf) : layout;
+    if (kind === "visual") return visual;
+    const hit = visual.expand(HIT_BOUNDS_PADDING);
+    const minHitSize = this._minHitSize.get();
+    if (!minHitSize) return hit;
+    const width = Math.max(hit.width, minHitSize.x);
+    const height = Math.max(hit.height, minHitSize.y);
+    const center = hit.center;
+    return BBox.fromCenter(center.x, center.y, width, height);
+  }
+  _computeWorldBounds(kind) {
+    const local = this._computeLocalBounds(kind);
+    if (local.isEmpty()) return local;
+    const wt = this.getWorldTransform();
+    const corners = [local.topLeft, local.topRight, local.bottomLeft, local.bottomRight];
+    const transformed = corners.map((c) => wt.transformPoint(c));
+    return BBox.fromPoints(transformed);
+  }
+  /**
+   * Read node position in either local-parent space (`local`) or world space (`world`).
+   */
+  getPosition(opts = {}) {
+    const space = opts.space ?? "local";
+    if (space === "world") {
+      return this.getWorldTransform().transformPoint(Vec2.zero());
+    }
+    return this._position.get();
+  }
+  /**
+   * Public geometry accessor that avoids direct bbox internals.
+   */
+  getBounds(opts = {}) {
+    const space = opts.space ?? "local";
+    const kind = opts.kind ?? "layout";
+    this._settleForMeasurement();
+    if (space === "world") {
+      if (kind === "layout") {
+        return this.computeWorldBBox();
+      }
+      return this._computeWorldBounds(kind);
+    }
+    return this._computeLocalBounds(kind);
+  }
+  getSize() {
+    return this.getBounds({ space: "local", kind: "layout" }).size;
   }
   // ── Dirty tracking ──
   _markTransformDirty(propagateToAncestors = true) {
@@ -2173,7 +2443,6 @@ var Rect = class extends SceneNode {
     }
   }
   computeLocalBBox() {
-    this._settleForMeasurement();
     const s = this._size.get();
     return BBox.fromPosSize(0, 0, s.x, s.y);
   }
@@ -2223,7 +2492,6 @@ var Circle = class extends SceneNode {
     }
   }
   computeLocalBBox() {
-    this._settleForMeasurement();
     const r = this._radius.get();
     return BBox.fromCenter(0, 0, r * 2, r * 2);
   }
@@ -2279,7 +2547,6 @@ var Path = class extends SceneNode {
     return this._segments.get();
   }
   computeLocalBBox() {
-    this._settleForMeasurement();
     const segs = this._segments.get();
     const points = [];
     for (const seg of segs) {
@@ -2680,7 +2947,7 @@ function mapScript(input, table, fallbackPrefix) {
 }
 
 // src/shapes/text.ts
-var Text = class extends SceneNode {
+var _Text = class _Text extends SceneNode {
   constructor(content, position = Vec2.zero()) {
     super(position);
     this.type = "text";
@@ -2754,23 +3021,53 @@ var Text = class extends SceneNode {
   getFont() {
     return `${this._fontSize.get()}px ${this._fontFamily.get()}`;
   }
+  /**
+   * Capture renderer-backed text metrics for improved subsequent layout reads.
+   */
+  measureWithContext(ctx) {
+    const content = this.getRenderedContent();
+    ctx.save();
+    ctx.font = this.getFont();
+    const metrics = ctx.measureText(content);
+    ctx.restore();
+    const fontSize = this._fontSize.get();
+    const displayScale = this.isLatexDisplayMode() ? 1.15 : 1;
+    const fallbackHeight = fontSize * 1.2 * displayScale;
+    const ascent = metrics.actualBoundingBoxAscent || fallbackHeight * 0.8;
+    const descent = metrics.actualBoundingBoxDescent || fallbackHeight * 0.2;
+    const width = metrics.width;
+    _Text._metricsCache.set(this._metricsKey(content), { width, ascent, descent });
+    return this;
+  }
+  _metricsKey(content) {
+    return [
+      content,
+      this._fontFamily.get(),
+      this._fontSize.get(),
+      this._renderMode.get(),
+      this._latexDisplayMode.get() ? "display" : "inline"
+    ].join("|");
+  }
   computeLocalBBox() {
-    this._settleForMeasurement();
     const content = this.getRenderedContent();
     const fontSize = this._fontSize.get();
     const displayScale = this.isLatexDisplayMode() ? 1.15 : 1;
+    const cached = _Text._metricsCache.get(this._metricsKey(content));
     const widthFactor = this.isLatex() ? 0.64 : 0.6;
     const approxWidth = content.length * fontSize * widthFactor * displayScale;
     const approxHeight = fontSize * 1.2 * displayScale;
+    const width = cached?.width ?? approxWidth;
+    const ascent = cached?.ascent ?? approxHeight * 0.8;
+    const descent = cached?.descent ?? approxHeight * 0.2;
     const align = this._textAlign.get();
     const baseline = this._textBaseline.get();
     let minX = 0;
     switch (align) {
       case "center":
-        minX = -approxWidth / 2;
+        minX = -width / 2;
         break;
       case "right":
-        minX = -approxWidth;
+        minX = -width;
         break;
     }
     let minY;
@@ -2778,28 +3075,30 @@ var Text = class extends SceneNode {
     switch (baseline) {
       case "top":
         minY = 0;
-        maxY = approxHeight;
+        maxY = ascent + descent;
         break;
       case "middle":
-        minY = -approxHeight / 2;
-        maxY = approxHeight / 2;
+        minY = -(ascent + descent) / 2;
+        maxY = (ascent + descent) / 2;
         break;
       case "bottom":
-        minY = -approxHeight;
+        minY = -(ascent + descent);
         maxY = 0;
         break;
       case "alphabetic":
       default:
-        minY = -approxHeight * 0.8;
-        maxY = approxHeight * 0.2;
+        minY = -ascent;
+        maxY = descent;
         break;
     }
-    return new BBox(minX, minY, minX + approxWidth, maxY);
+    return new BBox(minX, minY, minX + width, maxY);
   }
   getShapeGeometry() {
     return { type: "rect", bbox: this.computeLocalBBox() };
   }
 };
+_Text._metricsCache = /* @__PURE__ */ new Map();
+var Text = _Text;
 
 // src/shapes/line.ts
 var Line = class extends SceneNode {
@@ -2807,6 +3106,8 @@ var Line = class extends SceneNode {
     super(Vec2.zero());
     this.type = "line";
     this._disconnectBinding = null;
+    this._connectedFromNode = null;
+    this._connectedToNode = null;
     this._from = new Signal(from);
     this._to = new Signal(to);
     this._fromSpec = parseUnitPoint([from.x, from.y], "line from.x", "line from.y");
@@ -2881,6 +3182,8 @@ var Line = class extends SceneNode {
    */
   connect(fromNode, toNode, opts = {}) {
     this.disconnect();
+    this._connectedFromNode = fromNode;
+    this._connectedToNode = toNode;
     const fromRef = opts.from ?? "auto";
     const toRef = opts.to ?? "auto";
     const fromOffset = parseUnitPoint(opts.fromOffset ?? [0, 0], "line fromOffset.x", "line fromOffset.y");
@@ -2932,6 +3235,8 @@ var Line = class extends SceneNode {
   disconnect() {
     this._disconnectBinding?.();
     this._disconnectBinding = null;
+    this._connectedFromNode = null;
+    this._connectedToNode = null;
     return this;
   }
   getFrom() {
@@ -2973,25 +3278,9 @@ var Line = class extends SceneNode {
         return this._dedupeRoute(routedWorld.map((p) => inv.transformPoint(p)));
       }
     }
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      const midX = from.x + dx / 2;
-      return this._dedupeRoute([
-        from,
-        new Vec2(midX, from.y),
-        new Vec2(midX, to.y),
-        to
-      ]);
-    }
-    const midY = from.y + dy / 2;
-    return this._dedupeRoute([
-      from,
-      new Vec2(from.x, midY),
-      new Vec2(to.x, midY),
-      to
-    ]);
+    return this._simpleOrthogonalRoute(from, to);
   }
   computeLocalBBox() {
-    this._settleForMeasurement();
     return BBox.fromPoints(this.getRoutePoints());
   }
   getShapeGeometry() {
@@ -3009,6 +3298,10 @@ var Line = class extends SceneNode {
   _routeOrthogonalAvoidingObstacles(from, to) {
     const obstacles = this._collectObstacleBBoxesWorld(from, to).map((bb) => bb.expand(6));
     if (obstacles.length === 0) return null;
+    const direct = this._simpleOrthogonalRoute(from, to);
+    if (!this._routeIntersectsObstacles(direct, obstacles)) {
+      return direct;
+    }
     const bounds = this._computeRoutingBounds(from, to, obstacles);
     const cell = this._computeGridCellSize(from, to);
     const cols = Math.max(3, Math.ceil(bounds.width / cell) + 1);
@@ -3037,6 +3330,50 @@ var Line = class extends SceneNode {
       to
     ];
     return this._simplifyOrthogonalPoints(this._orthogonalize(points));
+  }
+  _simpleOrthogonalRoute(from, to) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    if (dx === 0 || dy === 0) {
+      return [from, to];
+    }
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      const midX = from.x + dx / 2;
+      return this._dedupeRoute([
+        from,
+        new Vec2(midX, from.y),
+        new Vec2(midX, to.y),
+        to
+      ]);
+    }
+    const midY = from.y + dy / 2;
+    return this._dedupeRoute([
+      from,
+      new Vec2(from.x, midY),
+      new Vec2(to.x, midY),
+      to
+    ]);
+  }
+  _routeIntersectsObstacles(points, obstacles) {
+    for (let i = 0; i < points.length - 1; i++) {
+      if (obstacles.some((bb) => this._orthogonalSegmentIntersectsBBox(points[i], points[i + 1], bb))) {
+        return true;
+      }
+    }
+    return false;
+  }
+  _orthogonalSegmentIntersectsBBox(a, b, bbox) {
+    const minX = Math.min(a.x, b.x);
+    const maxX = Math.max(a.x, b.x);
+    const minY = Math.min(a.y, b.y);
+    const maxY = Math.max(a.y, b.y);
+    if (a.x === b.x) {
+      return a.x >= bbox.minX && a.x <= bbox.maxX && maxY >= bbox.minY && minY <= bbox.maxY;
+    }
+    if (a.y === b.y) {
+      return a.y >= bbox.minY && a.y <= bbox.maxY && maxX >= bbox.minX && minX <= bbox.maxX;
+    }
+    return maxX >= bbox.minX && minX <= bbox.maxX && maxY >= bbox.minY && minY <= bbox.maxY;
   }
   _aStar(start, goal, cols, rows, blocked) {
     if (start.x === goal.x && start.y === goal.y) {
@@ -3178,7 +3515,10 @@ var Line = class extends SceneNode {
     }
     const obstacles = [];
     const walk = (node) => {
-      if (!skip.has(node) && node._visible.get() && node.type !== "group" && node.type !== "scene" && node.type !== "line") {
+      if (this._isConnectedEndpointSubtree(node)) {
+        return;
+      }
+      if (!skip.has(node) && node._visible.get() && node.type !== "group" && node.type !== "scene" && node.type !== "line" && node.type !== "text") {
         const bb = node.computeWorldBBox();
         if (!bb.isEmpty()) {
           if (bb.containsPoint(from) || bb.containsPoint(to)) {
@@ -3193,6 +3533,16 @@ var Line = class extends SceneNode {
     };
     walk(root);
     return obstacles;
+  }
+  _isConnectedEndpointSubtree(node) {
+    let current = node;
+    while (current) {
+      if (current === this._connectedFromNode || current === this._connectedToNode) {
+        return true;
+      }
+      current = current.parent;
+    }
+    return false;
   }
   _getRoot() {
     let node = this;
@@ -3262,10 +3612,29 @@ var Group = class _Group extends SceneNode {
     return this;
   }
   computeLocalBBox() {
-    this._settleForMeasurement();
     let box = this._size.get() ? BBox.fromPosSize(0, 0, this._size.get().x, this._size.get().y) : BBox.empty();
     for (const child of this.children) {
       const childLocal = child.computeLocalBBox();
+      if (childLocal.isEmpty()) continue;
+      const lt = child.getLocalTransform();
+      const corners = [
+        childLocal.topLeft,
+        childLocal.topRight,
+        childLocal.bottomLeft,
+        childLocal.bottomRight
+      ];
+      const transformed = corners.map((c) => lt.transformPoint(c));
+      box = box.union(BBox.fromPoints(transformed));
+    }
+    return box;
+  }
+  _computeLocalBounds(kind) {
+    if (kind === "layout") {
+      return this.computeLocalBBox();
+    }
+    let box = BBox.empty();
+    for (const child of this.children) {
+      const childLocal = child._computeLocalBounds(kind);
       if (childLocal.isEmpty()) continue;
       const lt = child.getLocalTransform();
       const corners = [
@@ -3996,10 +4365,61 @@ var Scene = class extends Group {
   /** Force a synchronous render. */
   render() {
     if (!this._renderer) return;
-    flushMutationEffects();
+    this.measure();
     this._renderer.clear();
     this._renderer.renderNode(this);
     this._needsRender = false;
+  }
+  /**
+   * Force synchronous layout/constraint settlement without rendering.
+   */
+  measure() {
+    flushMutationEffects();
+    return this;
+  }
+  /**
+   * Alias for `measure()`; useful when emphasizing explicit layout flushes.
+   */
+  flushLayout() {
+    return this.measure();
+  }
+  /**
+   * Subscribe to post-layout snapshots.
+   * The callback runs once immediately and after each subsequent layout change.
+   */
+  afterLayout(fn) {
+    const run = () => {
+      this.measure();
+      fn(this);
+    };
+    const unsubscribe = this.watchLayout(run);
+    run();
+    return unsubscribe;
+  }
+  /**
+   * Execute a callback against a settled layout snapshot.
+   */
+  withLayoutSnapshot(fn) {
+    this.measure();
+    return fn(this);
+  }
+  /**
+   * Attach an optional constraint tracing hook for runtime layout diagnostics.
+   */
+  setConstraintTrace(fn) {
+    setConstraintTraceHook(fn);
+    return this;
+  }
+  /**
+   * Attach a beginner-friendly narrative trace hook.
+   */
+  setConstraintTraceExplainer(fn) {
+    if (!fn) {
+      return this.setConstraintTrace(null);
+    }
+    return this.setConstraintTrace((event) => {
+      fn(explainConstraintTrace(event), event);
+    });
   }
   /** Mark scene as needing re-render on next frame. */
   _scheduleRender() {
@@ -4021,7 +4441,7 @@ var Scene = class extends Group {
       cancelAnimationFrame(this._rafId);
       this._rafId = null;
     }
-    flushMutationEffects();
+    this.measure();
     if (this._needsRender) {
       this.render();
     }
@@ -4080,28 +4500,52 @@ var Canvas2DRenderer = class {
     if (opacity < 1) {
       ctx.globalAlpha *= opacity;
     }
-    switch (node.type) {
-      case "rect":
-        this._renderRect(ctx, node);
-        break;
-      case "circle":
-        this._renderCircle(ctx, node);
-        break;
-      case "path":
-        this._renderPath(ctx, node);
-        break;
-      case "text":
-        this._renderText(ctx, node);
-        break;
-      case "line":
-        this._renderLine(ctx, node);
-        break;
+    if (!node.isLayoutOnly()) {
+      switch (node.type) {
+        case "rect":
+          this._renderRect(ctx, node);
+          break;
+        case "circle":
+          this._renderCircle(ctx, node);
+          break;
+        case "path":
+          this._renderPath(ctx, node);
+          break;
+        case "text":
+          this._renderText(ctx, node);
+          break;
+        case "line":
+          this._renderLine(ctx, node);
+          break;
+      }
     }
+    this._renderBoundsOverlay(ctx, node);
     for (const child of node.children) {
       this.renderNode(child);
     }
     ctx.restore();
     node.clearRenderDirty();
+  }
+  _renderBoundsOverlay(ctx, node) {
+    const kinds = node._getShownBoundsKinds();
+    if (kinds.length === 0) return;
+    for (const kind of kinds) {
+      const box = node.getBounds({ space: "local", kind });
+      if (box.isEmpty()) continue;
+      const style = this._boundsOverlayStyle(kind);
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash(style.dash);
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(box.minX, box.minY, box.width, box.height);
+      ctx.restore();
+    }
+  }
+  _boundsOverlayStyle(kind) {
+    if (kind === "layout") return { color: "#3b82f6", dash: [6, 3] };
+    if (kind === "visual") return { color: "#10b981", dash: [4, 3] };
+    return { color: "#f59e0b", dash: [2, 2] };
   }
   _applyStroke(ctx, node) {
     const stroke = node.style._stroke.get();
@@ -4175,6 +4619,7 @@ var Canvas2DRenderer = class {
     const content = text.getRenderedContent();
     const fill = text.style._fill.get();
     ctx.font = text.getFont();
+    text.measureWithContext(ctx);
     ctx.textAlign = text._textAlign.get();
     ctx.textBaseline = text._textBaseline.get();
     if (fill) {
@@ -4274,21 +4719,22 @@ var SVGRenderer = class {
   _renderNodeToElement(node) {
     if (!node._visible.get()) return null;
     let el;
+    const layoutOnly = node.isLayoutOnly();
     switch (node.type) {
       case "rect":
-        el = this._createRect(node);
+        el = layoutOnly ? document.createElementNS(SVG_NS, "g") : this._createRect(node);
         break;
       case "circle":
-        el = this._createCircle(node);
+        el = layoutOnly ? document.createElementNS(SVG_NS, "g") : this._createCircle(node);
         break;
       case "path":
-        el = this._createPath(node);
+        el = layoutOnly ? document.createElementNS(SVG_NS, "g") : this._createPath(node);
         break;
       case "text":
-        el = this._createText(node);
+        el = layoutOnly ? document.createElementNS(SVG_NS, "g") : this._createText(node);
         break;
       case "line":
-        el = this._createLine(node);
+        el = layoutOnly ? document.createElementNS(SVG_NS, "g") : this._createLine(node);
         break;
       case "group":
       case "scene":
@@ -4308,6 +4754,7 @@ var SVGRenderer = class {
         el.appendChild(childEl);
       }
     }
+    this._appendBoundsOverlay(el, node);
     this.nodeElements.set(node.id, el);
     node.clearRenderDirty();
     return el;
@@ -4439,6 +4886,31 @@ var SVGRenderer = class {
     const last = points[points.length - 1];
     cmds.push(`L${last.x} ${last.y}`);
     return cmds.join(" ");
+  }
+  _appendBoundsOverlay(el, node) {
+    const kinds = node._getShownBoundsKinds();
+    if (kinds.length === 0) return;
+    for (const kind of kinds) {
+      const box = node.getBounds({ space: "local", kind });
+      if (box.isEmpty()) continue;
+      const style = this._boundsOverlayStyle(kind);
+      const rect = document.createElementNS(SVG_NS, "rect");
+      rect.setAttribute("x", String(box.minX));
+      rect.setAttribute("y", String(box.minY));
+      rect.setAttribute("width", String(box.width));
+      rect.setAttribute("height", String(box.height));
+      rect.setAttribute("fill", "none");
+      rect.setAttribute("stroke", style.color);
+      rect.setAttribute("stroke-width", "1");
+      rect.setAttribute("stroke-dasharray", style.dash.join(" "));
+      rect.setAttribute("pointer-events", "none");
+      el.appendChild(rect);
+    }
+  }
+  _boundsOverlayStyle(kind) {
+    if (kind === "layout") return { color: "#3b82f6", dash: [6, 3] };
+    if (kind === "visual") return { color: "#10b981", dash: [4, 3] };
+    return { color: "#f59e0b", dash: [2, 2] };
   }
   /** Export the current SVG as a string. */
   export() {
@@ -4605,6 +5077,7 @@ var ZCanvas = class {
     this._container = container;
     const width = options.width ?? (container.clientWidth || 800);
     const height = options.height ?? (container.clientHeight || 600);
+    this._size = new Vec2(width, height);
     const rendererType = options.renderer ?? "auto";
     if (rendererType === "svg") {
       this._renderer = new SVGRenderer(width, height);
@@ -4620,6 +5093,7 @@ var ZCanvas = class {
       this._resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width: w, height: h } = entry.contentRect;
+          this._size = new Vec2(w, h);
           this._renderer.resize(w, h);
           this._scene.size([w, h]);
           this._scene.flush();
@@ -4876,9 +5350,11 @@ var ZCanvas = class {
   }
   _eventWorldPoint(event) {
     const rect = this._renderer.getElement().getBoundingClientRect();
+    const scaleX = rect.width > 0 ? this._size.x / rect.width : 1;
+    const scaleY = rect.height > 0 ? this._size.y / rect.height : 1;
     return new Vec2(
-      event.clientX - rect.left,
-      event.clientY - rect.top
+      (event.clientX - rect.left) * scaleX,
+      (event.clientY - rect.top) * scaleY
     );
   }
   _deltaForPointer(pointerId, next) {
@@ -5088,6 +5564,6 @@ var Z = {
 };
 var index_default = Z;
 
-export { AnchorMap, BBox, Canvas2DRenderer, Circle, Computed, Group, Line, Matrix3, Path, PinConstraint, PositionConstraint, Rect, SVGRenderer, Scene, SceneNode, Signal, Style, StyleManager, Text, Vec2, ZCanvas, batch, computed, index_default as default, perimeterPoint, rayShapeIntersection, signal };
+export { AnchorMap, BBox, Canvas2DRenderer, Circle, Computed, Group, Line, Matrix3, Path, PinConstraint, PositionConstraint, Rect, SVGRenderer, Scene, SceneNode, Signal, Style, StyleManager, Text, Vec2, ZCanvas, batch, computed, index_default as default, explainConstraintTrace, perimeterPoint, rayShapeIntersection, setConstraintTraceHook, signal };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

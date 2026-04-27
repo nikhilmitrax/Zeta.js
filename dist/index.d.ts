@@ -353,6 +353,28 @@ interface ConstraintOptions {
     align?: AlignOption;
 }
 type ConstraintDirection = 'rightOf' | 'leftOf' | 'above' | 'below';
+type ConstraintKind = 'position' | 'pin' | 'alignment';
+type ConstraintTraceTrigger = 'init' | 'target-layout' | 'self-layout' | 'parent-layout';
+interface ConstraintTraceEvent {
+    kind: ConstraintKind;
+    trigger: ConstraintTraceTrigger;
+    node: SceneNode;
+    target: SceneNode;
+    applied: boolean;
+    previousPosition: Vec2;
+    nextPosition: Vec2;
+    detail?: {
+        direction?: ConstraintDirection;
+        align?: AlignOption;
+    };
+}
+type ConstraintTraceHook = (event: ConstraintTraceEvent) => void;
+type ConstraintTraceExplainerHook = (message: string, event: ConstraintTraceEvent) => void;
+declare function setConstraintTraceHook(hook: ConstraintTraceHook | null): void;
+/**
+ * Convert a low-level constraint trace event into a beginner-friendly narrative.
+ */
+declare function explainConstraintTrace(event: ConstraintTraceEvent): string;
 /**
  * A PositionConstraint links this node's position to a target node.
  * When the target moves, the constraint recalculates the dependent position.
@@ -441,6 +463,16 @@ interface AnimationOptions {
     onComplete?: () => void;
 }
 type NodeType = 'rect' | 'circle' | 'path' | 'text' | 'line' | 'group' | 'scene';
+type BoundsKind = 'layout' | 'visual' | 'hit';
+type BoundsSpace = 'local' | 'world';
+interface BoundsOptions {
+    space?: BoundsSpace;
+    kind?: BoundsKind;
+}
+interface PositionOptions {
+    space?: BoundsSpace;
+}
+type MinHitSize = number | [number, number];
 declare abstract class SceneNode {
     readonly id: number;
     abstract readonly type: NodeType;
@@ -450,9 +482,12 @@ declare abstract class SceneNode {
     readonly _rotation: Signal<number>;
     readonly _scale: Signal<Vec2>;
     readonly _visible: Signal<boolean>;
+    readonly _layoutOnly: Signal<boolean>;
+    readonly _minHitSize: Signal<Vec2 | null>;
     readonly style: StyleManager;
     private _anchor;
     private _constraint;
+    private _constraintTarget;
     private _layoutListeners;
     private _eventHandlers;
     private _draggable;
@@ -469,6 +504,7 @@ declare abstract class SceneNode {
     private _cachedWorldBBox;
     private _renderDirty;
     private _onDirty;
+    private _shownBoundsKinds;
     constructor(position?: Vec2);
     /**
      * Reference size for descendants resolving percentage-based units.
@@ -509,6 +545,27 @@ declare abstract class SceneNode {
     rotateTo(radians: number): this;
     scaleTo(sx: number, sy?: number): this;
     visible(v: boolean): this;
+    /**
+     * Mark this node as layout-only: it still affects layout bounds/constraints
+     * but is excluded from visual and hit-test bounds.
+     */
+    layoutOnly(enabled?: boolean): this;
+    isLayoutOnly(): boolean;
+    /**
+     * Guarantee a minimum hit-target size (local-space) for easier selection.
+     * Set `null` to restore default hit bounds behavior.
+     */
+    minHitSize(size: MinHitSize | null): this;
+    getMinHitSize(): Vec2 | null;
+    /**
+     * Show one or more bounds overlays for this node while composing/debugging.
+     * Overlays are renderer-level visuals and do not affect hit-testing/layout.
+     */
+    showBounds(kind?: BoundsKind | BoundsKind[], enabled?: boolean): this;
+    hideBounds(kind?: BoundsKind | BoundsKind[]): this;
+    isShowingBounds(kind?: BoundsKind): boolean;
+    /** @internal */
+    _getShownBoundsKinds(): BoundsKind[];
     fill(color: string): this;
     stroke(color: string, width?: number): this;
     dashed(pattern: number[]): this;
@@ -596,6 +653,10 @@ declare abstract class SceneNode {
         offset?: UnitPoint;
     }): this;
     private _disposeConstraint;
+    private _setConstraint;
+    private _assertAcyclicConstraintTarget;
+    private _formatConstraintPath;
+    private _formatConstraintRemediationHint;
     private _containsLocalPoint;
     addChild(child: SceneNode): this;
     removeChild(child: SceneNode): this;
@@ -607,6 +668,17 @@ declare abstract class SceneNode {
     abstract getShapeGeometry(): ShapeGeometry;
     /** Compute world-space bounding box (cached, invalidated on transform changes). */
     computeWorldBBox(): BBox;
+    _computeLocalBounds(kind: BoundsKind): BBox;
+    private _computeWorldBounds;
+    /**
+     * Read node position in either local-parent space (`local`) or world space (`world`).
+     */
+    getPosition(opts?: PositionOptions): Vec2;
+    /**
+     * Public geometry accessor that avoids direct bbox internals.
+     */
+    getBounds(opts?: BoundsOptions): BBox;
+    getSize(): Vec2;
     _markTransformDirty(propagateToAncestors?: boolean): void;
     _markRenderDirty(layoutChanged?: boolean): void;
     isRenderDirty(): boolean;
@@ -732,6 +804,7 @@ declare class Text extends SceneNode {
     readonly _textBaseline: Signal<TextBaseline>;
     readonly _renderMode: Signal<TextRenderMode>;
     readonly _latexDisplayMode: Signal<boolean>;
+    private static _metricsCache;
     constructor(content: string, position?: Vec2);
     /** Set the text content. */
     text(content: string): this;
@@ -751,6 +824,11 @@ declare class Text extends SceneNode {
     isLatex(): boolean;
     isLatexDisplayMode(): boolean;
     getFont(): string;
+    /**
+     * Capture renderer-backed text metrics for improved subsequent layout reads.
+     */
+    measureWithContext(ctx: CanvasRenderingContext2D): this;
+    private _metricsKey;
     computeLocalBBox(): BBox;
     getShapeGeometry(): ShapeGeometry;
 }
@@ -777,6 +855,8 @@ declare class Line extends SceneNode {
     private _fromSpec;
     private _toSpec;
     private _disconnectBinding;
+    private _connectedFromNode;
+    private _connectedToNode;
     constructor(from: Vec2, to: Vec2);
     /** Set the start point. */
     from(point: UnitPoint): this;
@@ -804,6 +884,9 @@ declare class Line extends SceneNode {
     getShapeGeometry(): ShapeGeometry;
     private _dedupeRoute;
     private _routeOrthogonalAvoidingObstacles;
+    private _simpleOrthogonalRoute;
+    private _routeIntersectsObstacles;
+    private _orthogonalSegmentIntersectsBBox;
     private _aStar;
     private _reconstructPath;
     private _manhattan;
@@ -815,6 +898,7 @@ declare class Line extends SceneNode {
     private _orthogonalize;
     private _simplifyOrthogonalPoints;
     private _collectObstacleBBoxesWorld;
+    private _isConnectedEndpointSubtree;
     private _getRoot;
 }
 
@@ -937,6 +1021,7 @@ declare class Group extends SceneNode {
     addChild(child: SceneNode): this;
     removeChild(child: SceneNode): this;
     computeLocalBBox(): BBox;
+    _computeLocalBounds(kind: BoundsKind): BBox;
     getShapeGeometry(): ShapeGeometry;
     size(size: UnitSize): this;
     size(w: UnitValue, h: UnitValue): this;
@@ -1024,6 +1109,31 @@ declare class Scene extends Group {
     getRenderer(): Renderer | null;
     /** Force a synchronous render. */
     render(): void;
+    /**
+     * Force synchronous layout/constraint settlement without rendering.
+     */
+    measure(): this;
+    /**
+     * Alias for `measure()`; useful when emphasizing explicit layout flushes.
+     */
+    flushLayout(): this;
+    /**
+     * Subscribe to post-layout snapshots.
+     * The callback runs once immediately and after each subsequent layout change.
+     */
+    afterLayout(fn: (scene: Scene) => void): () => void;
+    /**
+     * Execute a callback against a settled layout snapshot.
+     */
+    withLayoutSnapshot<T>(fn: (scene: Scene) => T): T;
+    /**
+     * Attach an optional constraint tracing hook for runtime layout diagnostics.
+     */
+    setConstraintTrace(fn: ConstraintTraceHook | null): this;
+    /**
+     * Attach a beginner-friendly narrative trace hook.
+     */
+    setConstraintTraceExplainer(fn: ConstraintTraceExplainerHook | null): this;
     /** Mark scene as needing re-render on next frame. */
     private _scheduleRender;
     /** Force an immediate synchronous render (useful for tests / SSR). */
@@ -1069,6 +1179,7 @@ declare class ZCanvas {
     private _scene;
     private _renderer;
     private _container;
+    private _size;
     private _resizeObserver;
     private _hoveredNode;
     private _activePointerTargets;
@@ -1176,6 +1287,8 @@ declare class Canvas2DRenderer implements Renderer {
     clear(): void;
     resize(width: number, height: number): void;
     renderNode(node: SceneNode): void;
+    private _renderBoundsOverlay;
+    private _boundsOverlayStyle;
     private _applyStroke;
     private _renderRect;
     private _renderCircle;
@@ -1203,6 +1316,8 @@ declare class SVGRenderer implements Renderer {
     private _createText;
     private _createLine;
     private _buildLinePath;
+    private _appendBoundsOverlay;
+    private _boundsOverlayStyle;
     /** Export the current SVG as a string. */
     export(): string;
     dispose(): void;
@@ -1229,4 +1344,4 @@ interface ZetaPluginAPI {
 type PluginFn = (Z: ZetaPluginAPI) => void;
 declare const Z: ZetaPluginAPI;
 
-export { type AlignOption, AnchorMap, type AnchorName, type AnimationEase, type AnimationOptions, type AnimationProps, type AxisOptions, BBox, Canvas2DRenderer, type CanvasOptions, type CanvasTheme, Circle, type ColumnLayoutOptions, Computed, type ConstraintDirection, type ConstraintOptions, type ContainerGroup, type ContainerOptions, type CoordAxisConfig, type CoordScaleType, type CoordsConfig, type CustomMethodHost, type DebugOptions, type DebugSnapshot, type DraggableOptions, type EdgeOptions, type FollowDirection, type FunctionPlotOptions, type GridLayoutOptions, Group, type IsometricProjectionOptions, type LatexTextOptions, type LayoutAlignX, type LayoutAlignY, Line, type LineAnchorRef, type LineConnectOptions, type LineRouteMode, type LineRouteOptions, Matrix3, type NodeOptions, type NodePointerEvent, type NodePointerEventHandler, type NodePointerEventType, type NodePortSide, type NodePortSpec, type NodeType, Path, type PathSegment, PinConstraint, type PluginFn, type PluginMacroFactory, type PluginShapeFactory, PositionConstraint, Rect, type Renderer, type RendererType, type RowLayoutOptions, SVGRenderer, Scene, SceneNode, type ShapeGeometry, Signal, type StackLayoutAlign, type StackLayoutOptions, type StrokeStyle, Style, StyleManager, type StyleProps, type StyleTarget, type StyleTextAlign, type StyleTextBaseline, Text, type TextAlign, type TextBaseline, type TextRenderMode, type UnitPoint, type UnitSize, type UnitValue, Vec2, ZCanvas, type ZetaPluginAPI, batch, computed, Z as default, perimeterPoint, rayShapeIntersection, signal };
+export { type AlignOption, AnchorMap, type AnchorName, type AnimationEase, type AnimationOptions, type AnimationProps, type AxisOptions, BBox, type BoundsKind, type BoundsOptions, type BoundsSpace, Canvas2DRenderer, type CanvasOptions, type CanvasTheme, Circle, type ColumnLayoutOptions, Computed, type ConstraintDirection, type ConstraintKind, type ConstraintOptions, type ConstraintTraceEvent, type ConstraintTraceExplainerHook, type ConstraintTraceHook, type ConstraintTraceTrigger, type ContainerGroup, type ContainerOptions, type CoordAxisConfig, type CoordScaleType, type CoordsConfig, type CustomMethodHost, type DebugOptions, type DebugSnapshot, type DraggableOptions, type EdgeOptions, type FollowDirection, type FunctionPlotOptions, type GridLayoutOptions, Group, type IsometricProjectionOptions, type LatexTextOptions, type LayoutAlignX, type LayoutAlignY, Line, type LineAnchorRef, type LineConnectOptions, type LineRouteMode, type LineRouteOptions, Matrix3, type NodeOptions, type NodePointerEvent, type NodePointerEventHandler, type NodePointerEventType, type NodePortSide, type NodePortSpec, type NodeType, Path, type PathSegment, PinConstraint, type PluginFn, type PluginMacroFactory, type PluginShapeFactory, PositionConstraint, type PositionOptions, Rect, type Renderer, type RendererType, type RowLayoutOptions, SVGRenderer, Scene, SceneNode, type ShapeGeometry, Signal, type StackLayoutAlign, type StackLayoutOptions, type StrokeStyle, Style, StyleManager, type StyleProps, type StyleTarget, type StyleTextAlign, type StyleTextBaseline, Text, type TextAlign, type TextBaseline, type TextRenderMode, type UnitPoint, type UnitSize, type UnitValue, Vec2, ZCanvas, type ZetaPluginAPI, batch, computed, Z as default, explainConstraintTrace, perimeterPoint, rayShapeIntersection, setConstraintTraceHook, signal };
