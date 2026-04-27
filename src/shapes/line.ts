@@ -266,7 +266,6 @@ export class Line extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
-        this._settleForMeasurement();
         return BBox.fromPoints(this.getRoutePoints());
     }
 

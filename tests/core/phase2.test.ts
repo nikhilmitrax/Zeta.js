@@ -86,4 +86,48 @@ describe('Phase 2: constraints and anchors', () => {
         expect(shapeY).toBeGreaterThan(boxY);
         expect(boxX).not.toBeCloseTo(shapeX, 3);
     });
+
+    it('rejects direct and indirect constraint cycles', () => {
+        const a = new Rect(Vec2.zero(), new Vec2(80, 20));
+        const b = new Rect(Vec2.zero(), new Vec2(60, 20));
+        const c = new Rect(Vec2.zero(), new Vec2(40, 20));
+
+        a.rightOf(b, { gap: 8 });
+        b.rightOf(c, { gap: 8 });
+
+        expect(() => {
+            c.rightOf(a, { gap: 8 });
+        }).toThrow(/constraint cycle detected/i);
+
+        expect(() => {
+            a.pin(a, 'center');
+        }).toThrow(/constraint cycle detected/i);
+    });
+
+    it('includes remediation hints when cycle detection fails', () => {
+        const a = new Rect(Vec2.zero(), new Vec2(80, 20));
+        const b = new Rect(Vec2.zero(), new Vec2(60, 20));
+
+        a.rightOf(b, { gap: 8 });
+        let indirectMessage = '';
+        try {
+            b.rightOf(a, { gap: 8 });
+        } catch (err) {
+            indirectMessage = err instanceof Error ? err.message : String(err);
+        }
+
+        expect(indirectMessage).toMatch(/hint:/i);
+        expect(indirectMessage).toMatch(/\.at\(\[x, y\]\)/i);
+        expect(indirectMessage).toMatch(/neutral parent\/group node/i);
+
+        let directMessage = '';
+        try {
+            a.pin(a, 'center');
+        } catch (err) {
+            directMessage = err instanceof Error ? err.message : String(err);
+        }
+
+        expect(directMessage).toMatch(/hint:/i);
+        expect(directMessage).toMatch(/break one dependency/i);
+    });
 });

@@ -270,6 +270,21 @@ function flattenPath(shape: Extract<ShapeGeometry, { type: 'path' }>, subdivisio
 let nextId = 0;
 
 export type NodeType = 'rect' | 'circle' | 'path' | 'text' | 'line' | 'group' | 'scene';
+export type BoundsKind = 'layout' | 'visual' | 'hit';
+export type BoundsSpace = 'local' | 'world';
+
+export interface BoundsOptions {
+    space?: BoundsSpace;
+    kind?: BoundsKind;
+}
+
+export interface PositionOptions {
+    space?: BoundsSpace;
+}
+
+export type MinHitSize = number | [number, number];
+
+const HIT_BOUNDS_PADDING = 2;
 
 export abstract class SceneNode {
     readonly id: number;
@@ -284,6 +299,8 @@ export abstract class SceneNode {
     readonly _rotation: Signal<number>;
     readonly _scale: Signal<Vec2>;
     readonly _visible: Signal<boolean>;
+    readonly _layoutOnly: Signal<boolean>;
+    readonly _minHitSize: Signal<Vec2 | null>;
 
     // ── Styling ──
     readonly style: StyleManager;
@@ -293,6 +310,7 @@ export abstract class SceneNode {
 
     // ── Constraints ──
     private _constraint: PositionConstraint | PinConstraint | AlignmentConstraint | null = null;
+    private _constraintTarget: SceneNode | null = null;
     private _layoutListeners = new Set<() => void>();
     private _eventHandlers = new Map<NodePointerEventType, Set<NodePointerEventHandler>>();
     private _draggable: DraggableOptions | null = null;
@@ -315,6 +333,7 @@ export abstract class SceneNode {
     // ── Dirty tracking for render ──
     private _renderDirty = true;
     private _onDirty: (() => void) | null = null;
+    private _shownBoundsKinds = new Set<BoundsKind>();
 
     constructor(position: Vec2 = Vec2.zero()) {
         this.id = nextId++;
@@ -327,6 +346,8 @@ export abstract class SceneNode {
         this._rotation = new Signal(0);
         this._scale = new Signal(new Vec2(1, 1));
         this._visible = new Signal(true);
+        this._layoutOnly = new Signal(false);
+        this._minHitSize = new Signal<Vec2 | null>(null);
         this.style = new StyleManager();
 
         // Mark dirty when any transform changes
@@ -342,6 +363,8 @@ export abstract class SceneNode {
         this.style._dashPattern.subscribe(markRenderDirty);
         this.style._opacity.subscribe(markRenderDirty);
         this._visible.subscribe(markRenderDirty);
+        this._layoutOnly.subscribe(() => this._markRenderDirty(true));
+        this._minHitSize.subscribe(markRenderDirty);
     }
 
     /**
@@ -493,6 +516,87 @@ export abstract class SceneNode {
         return this;
     }
 
+    /**
+     * Mark this node as layout-only: it still affects layout bounds/constraints
+     * but is excluded from visual and hit-test bounds.
+     */
+    layoutOnly(enabled = true): this {
+        this._layoutOnly.set(enabled);
+        return this;
+    }
+
+    isLayoutOnly(): boolean {
+        return this._layoutOnly.get();
+    }
+
+    /**
+     * Guarantee a minimum hit-target size (local-space) for easier selection.
+     * Set `null` to restore default hit bounds behavior.
+     */
+    minHitSize(size: MinHitSize | null): this {
+        if (size === null) {
+            this._minHitSize.set(null);
+            return this;
+        }
+
+        const vec = typeof size === 'number'
+            ? new Vec2(size, size)
+            : new Vec2(size[0], size[1]);
+        const next = new Vec2(Math.max(0, vec.x), Math.max(0, vec.y));
+        this._minHitSize.set(next);
+        return this;
+    }
+
+    getMinHitSize(): Vec2 | null {
+        return this._minHitSize.get();
+    }
+
+    /**
+     * Show one or more bounds overlays for this node while composing/debugging.
+     * Overlays are renderer-level visuals and do not affect hit-testing/layout.
+     */
+    showBounds(kind: BoundsKind | BoundsKind[] = 'layout', enabled = true): this {
+        const kinds = Array.isArray(kind) ? kind : [kind];
+        let changed = false;
+        for (const item of kinds) {
+            if (enabled) {
+                if (!this._shownBoundsKinds.has(item)) {
+                    this._shownBoundsKinds.add(item);
+                    changed = true;
+                }
+            } else if (this._shownBoundsKinds.delete(item)) {
+                changed = true;
+            }
+        }
+        if (changed) {
+            this._markRenderDirty();
+        }
+        return this;
+    }
+
+    hideBounds(kind?: BoundsKind | BoundsKind[]): this {
+        if (!kind) {
+            if (this._shownBoundsKinds.size > 0) {
+                this._shownBoundsKinds.clear();
+                this._markRenderDirty();
+            }
+            return this;
+        }
+        return this.showBounds(kind, false);
+    }
+
+    isShowingBounds(kind?: BoundsKind): boolean {
+        if (!kind) {
+            return this._shownBoundsKinds.size > 0;
+        }
+        return this._shownBoundsKinds.has(kind);
+    }
+
+    /** @internal */
+    _getShownBoundsKinds(): BoundsKind[] {
+        return [...this._shownBoundsKinds];
+    }
+
     // ── Chainable style API ──
 
     fill(color: string): this {
@@ -630,10 +734,15 @@ export abstract class SceneNode {
      */
     containsWorldPoint(x: number, y: number, tolerance = 2): boolean {
         if (!this._visible.get()) return false;
+        if (this.isLayoutOnly()) return false;
 
         const world = new Vec2(x, y);
+        const hit = this.getBounds({ space: 'world', kind: 'hit' });
+        if (!hit.containsPoint(world)) return false;
         const local = this.getWorldTransform().invert().transformPoint(world);
-        return this._containsLocalPoint(local, tolerance);
+        if (this._containsLocalPoint(local, tolerance)) return true;
+        if (!this._minHitSize.get()) return false;
+        return this._computeLocalBounds('hit').containsPoint(local);
     }
 
     animate(props: AnimationProps, opts: AnimationOptions = {}): this {
@@ -808,48 +917,52 @@ export abstract class SceneNode {
      * Creates a reactive constraint: if `target` moves, this node follows.
      */
     rightOf(target: SceneNode, opts?: ConstraintOptions): this {
-        this._disposeConstraint();
-        this._constraint = new PositionConstraint(
-            this, target, 'rightOf',
-            opts?.gap ?? 0, opts?.align ?? 'center',
-        );
-        return this;
+        return this._setConstraint(target, () => new PositionConstraint(
+            this,
+            target,
+            'rightOf',
+            opts?.gap ?? 0,
+            opts?.align ?? 'center',
+        ));
     }
 
     /**
      * Position this node to the left of `target`.
      */
     leftOf(target: SceneNode, opts?: ConstraintOptions): this {
-        this._disposeConstraint();
-        this._constraint = new PositionConstraint(
-            this, target, 'leftOf',
-            opts?.gap ?? 0, opts?.align ?? 'center',
-        );
-        return this;
+        return this._setConstraint(target, () => new PositionConstraint(
+            this,
+            target,
+            'leftOf',
+            opts?.gap ?? 0,
+            opts?.align ?? 'center',
+        ));
     }
 
     /**
      * Position this node above `target`.
      */
     above(target: SceneNode, opts?: ConstraintOptions): this {
-        this._disposeConstraint();
-        this._constraint = new PositionConstraint(
-            this, target, 'above',
-            opts?.gap ?? 0, opts?.align ?? 'center',
-        );
-        return this;
+        return this._setConstraint(target, () => new PositionConstraint(
+            this,
+            target,
+            'above',
+            opts?.gap ?? 0,
+            opts?.align ?? 'center',
+        ));
     }
 
     /**
      * Position this node below `target`.
      */
     below(target: SceneNode, opts?: ConstraintOptions): this {
-        this._disposeConstraint();
-        this._constraint = new PositionConstraint(
-            this, target, 'below',
-            opts?.gap ?? 0, opts?.align ?? 'center',
-        );
-        return this;
+        return this._setConstraint(target, () => new PositionConstraint(
+            this,
+            target,
+            'below',
+            opts?.gap ?? 0,
+            opts?.align ?? 'center',
+        ));
     }
 
     /**
@@ -881,12 +994,10 @@ export abstract class SceneNode {
         anchorOrFn: AnchorName | (() => [number, number]),
         opts?: { offset?: UnitPoint },
     ): this {
-        this._disposeConstraint();
         const anchorFn = typeof anchorOrFn === 'string'
             ? () => target.anchor.get(anchorOrFn)
             : anchorOrFn;
-        this._constraint = new PinConstraint(this, target, anchorFn, opts?.offset);
-        return this;
+        return this._setConstraint(target, () => new PinConstraint(this, target, anchorFn, opts?.offset));
     }
 
     /**
@@ -900,15 +1011,13 @@ export abstract class SceneNode {
         targetAnchor: AnchorName,
         opts?: { offset?: UnitPoint },
     ): this {
-        this._disposeConstraint();
-        this._constraint = new AlignmentConstraint(
+        return this._setConstraint(target, () => new AlignmentConstraint(
             this,
             target,
             () => this.anchor.get(selfAnchor),
             () => target.anchor.get(targetAnchor),
-            opts?.offset
-        );
-        return this;
+            opts?.offset,
+        ));
     }
 
     /**
@@ -958,6 +1067,63 @@ export abstract class SceneNode {
     private _disposeConstraint(): void {
         this._constraint?.dispose();
         this._constraint = null;
+        this._constraintTarget = null;
+    }
+
+    private _setConstraint(
+        target: SceneNode,
+        factory: () => PositionConstraint | PinConstraint | AlignmentConstraint,
+    ): this {
+        this._assertAcyclicConstraintTarget(target);
+        this._disposeConstraint();
+        this._constraint = factory();
+        this._constraintTarget = target;
+        return this;
+    }
+
+    private _assertAcyclicConstraintTarget(target: SceneNode): void {
+        if (target === this) {
+            throw new Error(
+                `Zeta: constraint cycle detected: ${this._formatConstraintPath([this, this])}. ${this._formatConstraintRemediationHint([this, this], this)}`,
+            );
+        }
+
+        const chain: SceneNode[] = [this, target];
+        const visited = new Set<number>([this.id]);
+        let cursor: SceneNode | null = target;
+
+        while (cursor) {
+            const current: SceneNode = cursor;
+            if (visited.has(current.id)) {
+                if (current === this) {
+                    throw new Error(
+                        `Zeta: constraint cycle detected: ${this._formatConstraintPath(chain)}. ${this._formatConstraintRemediationHint(chain, this)}`,
+                    );
+                }
+                const loopStart = chain.findIndex((n) => n.id === current.id);
+                const loopPath = loopStart >= 0
+                    ? [...chain.slice(loopStart), current]
+                    : [current, current];
+                throw new Error(
+                    `Zeta: existing constraint cycle detected: ${this._formatConstraintPath(loopPath)}. ${this._formatConstraintRemediationHint(loopPath, this)}`,
+                );
+            }
+
+            visited.add(current.id);
+            const next: SceneNode | null = current._constraintTarget;
+            if (!next) return;
+            chain.push(next);
+            cursor = next;
+        }
+    }
+
+    private _formatConstraintPath(path: SceneNode[]): string {
+        return path.map((node) => `${node.type}#${node.id}`).join(' -> ');
+    }
+
+    private _formatConstraintRemediationHint(loopPath: SceneNode[], attemptedNode: SceneNode): string {
+        const cycleText = this._formatConstraintPath(loopPath);
+        return `Hint: break one dependency in ${cycleText} before adding a new link from ${attemptedNode.type}#${attemptedNode.id}. You can clear one side with .at([x, y]) or constrain both nodes to a neutral parent/group node instead of each other.`;
     }
 
     private _containsLocalPoint(local: Vec2, tolerance: number): boolean {
@@ -1099,7 +1265,6 @@ export abstract class SceneNode {
 
     /** Compute world-space bounding box (cached, invalidated on transform changes). */
     computeWorldBBox(): BBox {
-        this._settleForMeasurement();
         if (this._worldBBoxDirty) {
             const local = this.computeLocalBBox();
             if (local.isEmpty()) {
@@ -1113,6 +1278,66 @@ export abstract class SceneNode {
             this._worldBBoxDirty = false;
         }
         return this._cachedWorldBBox;
+    }
+
+    _computeLocalBounds(kind: BoundsKind): BBox {
+        const layout = this.computeLocalBBox();
+        if (layout.isEmpty()) return layout;
+        if (kind === 'layout') return layout;
+        if (this.isLayoutOnly()) return BBox.empty();
+
+        const stroke = this.style._stroke.get();
+        const strokeHalf = stroke && stroke.width > 0 ? stroke.width / 2 : 0;
+        const visual = strokeHalf > 0 ? layout.expand(strokeHalf) : layout;
+        if (kind === 'visual') return visual;
+        const hit = visual.expand(HIT_BOUNDS_PADDING);
+        const minHitSize = this._minHitSize.get();
+        if (!minHitSize) return hit;
+        const width = Math.max(hit.width, minHitSize.x);
+        const height = Math.max(hit.height, minHitSize.y);
+        const center = hit.center;
+        return BBox.fromCenter(center.x, center.y, width, height);
+    }
+
+    private _computeWorldBounds(kind: BoundsKind): BBox {
+        const local = this._computeLocalBounds(kind);
+        if (local.isEmpty()) return local;
+
+        const wt = this.getWorldTransform();
+        const corners = [local.topLeft, local.topRight, local.bottomLeft, local.bottomRight];
+        const transformed = corners.map((c) => wt.transformPoint(c));
+        return BBox.fromPoints(transformed);
+    }
+
+    /**
+     * Read node position in either local-parent space (`local`) or world space (`world`).
+     */
+    getPosition(opts: PositionOptions = {}): Vec2 {
+        const space = opts.space ?? 'local';
+        if (space === 'world') {
+            return this.getWorldTransform().transformPoint(Vec2.zero());
+        }
+        return this._position.get();
+    }
+
+    /**
+     * Public geometry accessor that avoids direct bbox internals.
+     */
+    getBounds(opts: BoundsOptions = {}): BBox {
+        const space = opts.space ?? 'local';
+        const kind = opts.kind ?? 'layout';
+        this._settleForMeasurement();
+        if (space === 'world') {
+            if (kind === 'layout') {
+                return this.computeWorldBBox();
+            }
+            return this._computeWorldBounds(kind);
+        }
+        return this._computeLocalBounds(kind);
+    }
+
+    getSize(): Vec2 {
+        return this.getBounds({ space: 'local', kind: 'layout' }).size;
     }
 
     // ── Dirty tracking ──

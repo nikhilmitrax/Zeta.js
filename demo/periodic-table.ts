@@ -361,7 +361,7 @@ function createDemo(renderer: RendererType) {
         title(
             z,
             'Periodic Table (CeTZ -> Zeta)',
-            'Structured element data + row/column marker tracks + anchor-based placement (minimal hardcoded coordinates).',
+            'Structured element data + row/column marker tracks + anchor-based placement with explicit layout snapshots.',
         );
 
         const scene = z.column({ gap: 18, align: 'center' });
@@ -532,14 +532,13 @@ function createDemo(renderer: RendererType) {
 
         sidebar.follow(main, 'right', { gap: LEGEND_GAP, align: 'center' });
 
-        // Let the engine compute the raw local dimensions of the whole content block.
-        // It's safe to do this now because our constraints queue correctly, but
-        // alignTarget means we don't *need* manual math to center the container!
-        const cBox = content.computeLocalBBox();
-        const mainTrackBox = mainTrack.computeLocalBBox();
-
-        const boardWidth = cBox.width + BOARD_PAD_X * 2;
-        const boardHeight = cBox.height + BOARD_PAD_TOP + BOARD_PAD_BOTTOM;
+        const { boardWidth, boardHeight } = z.getScene().withLayoutSnapshot(() => {
+            const contentBounds = content.getBounds({ space: 'local', kind: 'layout' });
+            return {
+                boardWidth: contentBounds.width + BOARD_PAD_X * 2,
+                boardHeight: contentBounds.height + BOARD_PAD_TOP + BOARD_PAD_BOTTOM,
+            };
+        });
 
         boardFrame.pos(0, 0).size([boardWidth, boardHeight]);
         titlePanel.size([boardWidth, TITLE_PANEL_HEIGHT]);
@@ -579,4 +578,3 @@ function createDemo(renderer: RendererType) {
 }
 
 mountRendererDemo(createDemo);
-

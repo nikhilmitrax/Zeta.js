@@ -1,6 +1,6 @@
 // ─── Group: Container node ───────────────────────────────────────────────────
 
-import { SceneNode, type NodeType } from './node';
+import { SceneNode, type BoundsKind, type NodeType } from './node';
 import { Signal } from './signal';
 import { BBox, Vec2, type ShapeGeometry } from '../math';
 import {
@@ -253,7 +253,6 @@ export class Group extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
-        this._settleForMeasurement();
         let box = this._size.get()
             ? BBox.fromPosSize(0, 0, this._size.get()!.x, this._size.get()!.y)
             : BBox.empty();
@@ -272,6 +271,30 @@ export class Group extends SceneNode {
             const transformed = corners.map((c) => lt.transformPoint(c));
             box = box.union(BBox.fromPoints(transformed));
         }
+        return box;
+    }
+
+    override _computeLocalBounds(kind: BoundsKind): BBox {
+        if (kind === 'layout') {
+            return this.computeLocalBBox();
+        }
+
+        let box = BBox.empty();
+        for (const child of this.children) {
+            const childLocal = child._computeLocalBounds(kind);
+            if (childLocal.isEmpty()) continue;
+
+            const lt = child.getLocalTransform();
+            const corners = [
+                childLocal.topLeft,
+                childLocal.topRight,
+                childLocal.bottomLeft,
+                childLocal.bottomRight,
+            ];
+            const transformed = corners.map((c) => lt.transformPoint(c));
+            box = box.union(BBox.fromPoints(transformed));
+        }
+
         return box;
     }
 

@@ -72,6 +72,16 @@ describe('SceneNode interactivity', () => {
         expect(line.containsWorldPoint(50, 12)).toBe(false);
     });
 
+    it('supports minimum hit-target sizing for tiny targets', () => {
+        const rect = new Rect(Vec2.zero(), new Vec2(4, 4)).fill('#fff');
+
+        expect(rect.containsWorldPoint(12, 2)).toBe(false);
+
+        rect.minHitSize(24);
+        expect(rect.containsWorldPoint(12, 2)).toBe(true);
+        expect(rect.containsWorldPoint(18, 2)).toBe(false);
+    });
+
     it('animates transform and style properties', () => {
         const rect = new Rect(Vec2.zero(), new Vec2(20, 10))
             .fill('#000000')

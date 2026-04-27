@@ -1,7 +1,7 @@
 // ─── SVGRenderer ──────────────────────────────────────────────────────────────
 
 import type { Renderer } from './renderer';
-import type { SceneNode } from '../core/node';
+import type { BoundsKind, SceneNode } from '../core/node';
 import type { Rect } from '../shapes/rect';
 import type { Circle } from '../shapes/circle';
 import type { Path } from '../shapes/path';
@@ -52,22 +52,33 @@ export class SVGRenderer implements Renderer {
         if (!node._visible.get()) return null;
 
         let el: SVGElement;
+        const layoutOnly = node.isLayoutOnly();
 
         switch (node.type) {
             case 'rect':
-                el = this._createRect(node as unknown as Rect);
+                el = layoutOnly
+                    ? document.createElementNS(SVG_NS, 'g')
+                    : this._createRect(node as unknown as Rect);
                 break;
             case 'circle':
-                el = this._createCircle(node as unknown as Circle);
+                el = layoutOnly
+                    ? document.createElementNS(SVG_NS, 'g')
+                    : this._createCircle(node as unknown as Circle);
                 break;
             case 'path':
-                el = this._createPath(node as unknown as Path);
+                el = layoutOnly
+                    ? document.createElementNS(SVG_NS, 'g')
+                    : this._createPath(node as unknown as Path);
                 break;
             case 'text':
-                el = this._createText(node as unknown as Text);
+                el = layoutOnly
+                    ? document.createElementNS(SVG_NS, 'g')
+                    : this._createText(node as unknown as Text);
                 break;
             case 'line':
-                el = this._createLine(node as unknown as Line);
+                el = layoutOnly
+                    ? document.createElementNS(SVG_NS, 'g')
+                    : this._createLine(node as unknown as Line);
                 break;
             case 'group':
             case 'scene':
@@ -93,6 +104,8 @@ export class SVGRenderer implements Renderer {
                 el.appendChild(childEl);
             }
         }
+
+        this._appendBoundsOverlay(el, node);
 
         this.nodeElements.set(node.id, el);
         node.clearRenderDirty();
@@ -254,6 +267,34 @@ export class SVGRenderer implements Renderer {
         const last = points[points.length - 1];
         cmds.push(`L${last.x} ${last.y}`);
         return cmds.join(' ');
+    }
+
+    private _appendBoundsOverlay(el: SVGElement, node: SceneNode): void {
+        const kinds = node._getShownBoundsKinds();
+        if (kinds.length === 0) return;
+
+        for (const kind of kinds) {
+            const box = node.getBounds({ space: 'local', kind });
+            if (box.isEmpty()) continue;
+            const style = this._boundsOverlayStyle(kind);
+            const rect = document.createElementNS(SVG_NS, 'rect');
+            rect.setAttribute('x', String(box.minX));
+            rect.setAttribute('y', String(box.minY));
+            rect.setAttribute('width', String(box.width));
+            rect.setAttribute('height', String(box.height));
+            rect.setAttribute('fill', 'none');
+            rect.setAttribute('stroke', style.color);
+            rect.setAttribute('stroke-width', '1');
+            rect.setAttribute('stroke-dasharray', style.dash.join(' '));
+            rect.setAttribute('pointer-events', 'none');
+            el.appendChild(rect);
+        }
+    }
+
+    private _boundsOverlayStyle(kind: BoundsKind): { color: string; dash: number[] } {
+        if (kind === 'layout') return { color: '#3b82f6', dash: [6, 3] };
+        if (kind === 'visual') return { color: '#10b981', dash: [4, 3] };
+        return { color: '#f59e0b', dash: [2, 2] };
     }
 
     /** Export the current SVG as a string. */

@@ -59,4 +59,21 @@ describe('Text shape', () => {
         expect(middle.computeLocalBBox().equals(new BBox(0, -6, 12, 6))).toBe(true);
         expect(bottom.computeLocalBBox().equals(new BBox(0, -12, 12, 0))).toBe(true);
     });
+
+    it('reuses renderer-measured metrics when available', () => {
+        const t = new Text('AB-measured').fontSize(10);
+        const fakeCtx = {
+            font: '',
+            save: () => undefined,
+            restore: () => undefined,
+            measureText: () => ({
+                width: 20,
+                actualBoundingBoxAscent: 7,
+                actualBoundingBoxDescent: 3,
+            }),
+        } as unknown as CanvasRenderingContext2D;
+
+        t.measureWithContext(fakeCtx);
+        expect(t.computeLocalBBox().equals(new BBox(0, -7, 20, 3))).toBe(true);
+    });
 });

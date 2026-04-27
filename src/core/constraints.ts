@@ -23,6 +23,93 @@ export interface ConstraintOptions {
 }
 
 export type ConstraintDirection = 'rightOf' | 'leftOf' | 'above' | 'below';
+export type ConstraintKind = 'position' | 'pin' | 'alignment';
+export type ConstraintTraceTrigger = 'init' | 'target-layout' | 'self-layout' | 'parent-layout';
+
+export interface ConstraintTraceEvent {
+    kind: ConstraintKind;
+    trigger: ConstraintTraceTrigger;
+    node: SceneNode;
+    target: SceneNode;
+    applied: boolean;
+    previousPosition: Vec2;
+    nextPosition: Vec2;
+    detail?: {
+        direction?: ConstraintDirection;
+        align?: AlignOption;
+    };
+}
+
+export type ConstraintTraceHook = (event: ConstraintTraceEvent) => void;
+export type ConstraintTraceExplainerHook = (message: string, event: ConstraintTraceEvent) => void;
+
+let constraintTraceHook: ConstraintTraceHook | null = null;
+
+export function setConstraintTraceHook(hook: ConstraintTraceHook | null): void {
+    constraintTraceHook = hook;
+}
+
+function emitConstraintTrace(event: ConstraintTraceEvent): void {
+    if (!constraintTraceHook) return;
+    try {
+        constraintTraceHook(event);
+    } catch {
+        // Tracing should never break layout settlement.
+    }
+}
+
+function describeNodeForTrace(node: SceneNode): string {
+    return `${node.type}#${node.id}`;
+}
+
+function describeTriggerForTrace(trigger: ConstraintTraceTrigger): string {
+    switch (trigger) {
+        case 'init':
+            return 'after initialization';
+        case 'target-layout':
+            return 'after the target layout changed';
+        case 'self-layout':
+            return 'after its own layout changed';
+        case 'parent-layout':
+            return 'after its parent layout changed';
+    }
+}
+
+function describeConstraintForTrace(event: ConstraintTraceEvent): string {
+    if (event.kind === 'position') {
+        const direction = event.detail?.direction;
+        switch (direction) {
+            case 'rightOf':
+                return 'to stay right of';
+            case 'leftOf':
+                return 'to stay left of';
+            case 'above':
+                return 'to stay above';
+            case 'below':
+                return 'to stay below';
+            default:
+                return 'to preserve relative placement with';
+        }
+    }
+    if (event.kind === 'pin') {
+        return 'to stay pinned to';
+    }
+    return 'to stay aligned with';
+}
+
+/**
+ * Convert a low-level constraint trace event into a beginner-friendly narrative.
+ */
+export function explainConstraintTrace(event: ConstraintTraceEvent): string {
+    const subject = describeNodeForTrace(event.node);
+    const target = describeNodeForTrace(event.target);
+    const relation = describeConstraintForTrace(event);
+    const trigger = describeTriggerForTrace(event.trigger);
+    if (event.applied) {
+        return `${subject} moved ${relation} ${target} ${trigger}.`;
+    }
+    return `${subject} stayed in place while checking ${relation} ${target} ${trigger}.`;
+}
 
 function toParentLocal(node: SceneNode, world: Vec2): Vec2 {
     if (!node.parent) return world;
@@ -61,15 +148,15 @@ export class PositionConstraint {
         this._gapSpec = parseUnitValue(gap, 'constraint gap');
         this._syncParentSubscription();
 
-        this._requestApply();
+        this._requestApply('init');
 
         // React to both target layout changes and this node's own geometry changes.
         const unsubTarget = this._target._subscribeLayout(() => {
-            this._requestApply();
+            this._requestApply('target-layout');
         });
         const unsubSelf = this._node._subscribeLayout(() => {
             this._syncParentSubscription();
-            this._requestApply();
+            this._requestApply('self-layout');
         });
         this._unsubscribe = () => {
             unsubTarget();
@@ -90,16 +177,16 @@ export class PositionConstraint {
         if (!parent) return;
 
         this._parentUnsub = parent.watchLayout(() => {
-            this._requestApply();
+            this._requestApply('parent-layout');
         });
     }
 
-    private _requestApply(): void {
+    private _requestApply(trigger: ConstraintTraceTrigger): void {
         if (this._applyQueued) return;
         this._applyQueued = true;
         queueMutationEffect(() => {
             this._applyQueued = false;
-            this._apply();
+            this._apply(trigger);
         }, 'high');
         if (!isBatchingSceneMutations()) {
             flushMutationEffects();
@@ -107,7 +194,7 @@ export class PositionConstraint {
     }
 
     /** Recalculate and apply the constrained position. */
-    private _apply(): void {
+    private _apply(trigger: ConstraintTraceTrigger): void {
         const targetBBox = bboxInParentSpace(this._node, this._target.computeWorldBBox());
         const selfBBox = bboxInParentSpace(this._node, this._node.computeWorldBBox());
 
@@ -158,10 +245,25 @@ export class PositionConstraint {
             }
         }
 
+        const previous = this._node._position.get();
         const next = new Vec2(x, y);
-        if (!this._node._position.get().equals(next)) {
+        const applied = !previous.equals(next);
+        if (applied) {
             this._node.pos(next.x, next.y);
         }
+        emitConstraintTrace({
+            kind: 'position',
+            trigger,
+            node: this._node,
+            target: this._target,
+            applied,
+            previousPosition: previous,
+            nextPosition: next,
+            detail: {
+                direction: this._direction,
+                align: this._align,
+            },
+        });
     }
 
     /**
@@ -211,14 +313,14 @@ export class PinConstraint {
     ) {
         this._offsetSpec = parseUnitPoint(offset ?? [0, 0], 'pin offset.x', 'pin offset.y');
         this._syncParentSubscription();
-        this._requestApply();
+        this._requestApply('init');
 
         const unsubTarget = this._target._subscribeLayout(() => {
-            this._requestApply();
+            this._requestApply('target-layout');
         });
         const unsubSelf = this._node._subscribeLayout(() => {
             this._syncParentSubscription();
-            this._requestApply();
+            this._requestApply('self-layout');
         });
         this._unsubscribe = () => {
             unsubTarget();
@@ -239,32 +341,43 @@ export class PinConstraint {
         if (!parent) return;
 
         this._parentUnsub = parent.watchLayout(() => {
-            this._requestApply();
+            this._requestApply('parent-layout');
         });
     }
 
-    private _requestApply(): void {
+    private _requestApply(trigger: ConstraintTraceTrigger): void {
         if (this._applyQueued) return;
         this._applyQueued = true;
         queueMutationEffect(() => {
             this._applyQueued = false;
-            this._apply();
+            this._apply(trigger);
         }, 'high');
         if (!isBatchingSceneMutations()) {
             flushMutationEffects();
         }
     }
 
-    private _apply(): void {
+    private _apply(trigger: ConstraintTraceTrigger): void {
         const [ax, ay] = this._anchorFn();
         const localAnchor = toParentLocal(this._node, new Vec2(ax, ay));
+        const previous = this._node._position.get();
         const next = new Vec2(
             localAnchor.x + this._node._resolveUnitSpec(this._offsetSpec[0], 'x', 'pin offset.x'),
             localAnchor.y + this._node._resolveUnitSpec(this._offsetSpec[1], 'y', 'pin offset.y'),
         );
-        if (!this._node._position.get().equals(next)) {
+        const applied = !previous.equals(next);
+        if (applied) {
             this._node.pos(next.x, next.y);
         }
+        emitConstraintTrace({
+            kind: 'pin',
+            trigger,
+            node: this._node,
+            target: this._target,
+            applied,
+            previousPosition: previous,
+            nextPosition: next,
+        });
     }
 
     dispose(): void {
@@ -295,14 +408,14 @@ export class AlignmentConstraint {
     ) {
         this._offsetSpec = parseUnitPoint(offset ?? [0, 0], 'align offset.x', 'align offset.y');
         this._syncParentSubscription();
-        this._requestApply();
+        this._requestApply('init');
 
         const unsubTarget = this._target._subscribeLayout(() => {
-            this._requestApply();
+            this._requestApply('target-layout');
         });
         const unsubSelf = this._node._subscribeLayout(() => {
             this._syncParentSubscription();
-            this._requestApply();
+            this._requestApply('self-layout');
         });
         this._unsubscribe = () => {
             unsubTarget();
@@ -323,31 +436,41 @@ export class AlignmentConstraint {
         if (!parent) return;
 
         this._parentUnsub = parent.watchLayout(() => {
-            this._requestApply();
+            this._requestApply('parent-layout');
         });
     }
 
-    private _requestApply(): void {
+    private _requestApply(trigger: ConstraintTraceTrigger): void {
         if (this._applyQueued) return;
         this._applyQueued = true;
         queueMutationEffect(() => {
             this._applyQueued = false;
-            this._apply();
+            this._apply(trigger);
         }, 'high');
         if (!isBatchingSceneMutations()) {
             flushMutationEffects();
         }
     }
 
-    private _apply(): void {
+    private _apply(trigger: ConstraintTraceTrigger): void {
         const [targetX, targetY] = this._targetAnchorFn();
         const [selfX, selfY] = this._selfAnchorFn();
+        const previous = this._node._position.get();
 
         // Find the delta required in world space to align our anchor to the target anchor
         const dx = targetX - selfX;
         const dy = targetY - selfY;
 
         if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
+            emitConstraintTrace({
+                kind: 'alignment',
+                trigger,
+                node: this._node,
+                target: this._target,
+                applied: false,
+                previousPosition: previous,
+                nextPosition: previous,
+            });
             return;
         }
 
@@ -365,9 +488,19 @@ export class AlignmentConstraint {
             nextLocalPos.y + this._node._resolveUnitSpec(this._offsetSpec[1], 'y', 'align offset.y'),
         );
 
-        if (!this._node._position.get().equals(next)) {
+        const applied = !previous.equals(next);
+        if (applied) {
             this._node.pos(next.x, next.y);
         }
+        emitConstraintTrace({
+            kind: 'alignment',
+            trigger,
+            node: this._node,
+            target: this._target,
+            applied,
+            previousPosition: previous,
+            nextPosition: next,
+        });
     }
 
     dispose(): void {
@@ -375,4 +508,3 @@ export class AlignmentConstraint {
         this._unsubscribe = null;
     }
 }
-

@@ -52,7 +52,7 @@ describe('Scene graph batching', () => {
         expect(count).toBe(1);
     });
 
-    it('settles pending layout before geometry reads inside a batch', () => {
+    it('does not implicitly settle geometry reads inside a batch', () => {
         const root = new Group();
         const row = root.row({ gap: 10, align: 'bottom' });
 
@@ -60,12 +60,18 @@ describe('Scene graph batching', () => {
             row.rect([0, 0], [20, 10]);
             row.rect([0, 0], [10, 30]);
 
-            const bb = row.computeLocalBBox();
-            expect(bb.minX).toBe(0);
-            expect(bb.minY).toBe(0);
-            expect(bb.maxX).toBe(40);
-            expect(bb.maxY).toBe(30);
+            const stale = row.computeLocalBBox();
+            expect(stale.minX).toBe(0);
+            expect(stale.minY).toBe(0);
+            expect(stale.maxX).toBe(20);
+            expect(stale.maxY).toBe(30);
         });
+
+        const settled = row.computeLocalBBox();
+        expect(settled.minX).toBe(0);
+        expect(settled.minY).toBe(0);
+        expect(settled.maxX).toBe(40);
+        expect(settled.maxY).toBe(30);
     });
 
     it('lays out sized group children at their full width inside a batch', () => {

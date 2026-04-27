@@ -11,6 +11,12 @@ export interface LatexTextOptions {
     displayMode?: boolean;
 }
 
+type TextMetricSnapshot = {
+    width: number;
+    ascent: number;
+    descent: number;
+};
+
 export class Text extends SceneNode {
     readonly type: NodeType = 'text';
     readonly _content: Signal<string>;
@@ -20,6 +26,7 @@ export class Text extends SceneNode {
     readonly _textBaseline: Signal<TextBaseline>;
     readonly _renderMode: Signal<TextRenderMode>;
     readonly _latexDisplayMode: Signal<boolean>;
+    private static _metricsCache = new Map<string, TextMetricSnapshot>();
 
     constructor(content: string, position: Vec2 = Vec2.zero()) {
         super(position);
@@ -107,26 +114,58 @@ export class Text extends SceneNode {
         return `${this._fontSize.get()}px ${this._fontFamily.get()}`;
     }
 
+    /**
+     * Capture renderer-backed text metrics for improved subsequent layout reads.
+     */
+    measureWithContext(ctx: CanvasRenderingContext2D): this {
+        const content = this.getRenderedContent();
+        ctx.save();
+        ctx.font = this.getFont();
+        const metrics = ctx.measureText(content);
+        ctx.restore();
+
+        const fontSize = this._fontSize.get();
+        const displayScale = this.isLatexDisplayMode() ? 1.15 : 1;
+        const fallbackHeight = fontSize * 1.2 * displayScale;
+        const ascent = metrics.actualBoundingBoxAscent || fallbackHeight * 0.8;
+        const descent = metrics.actualBoundingBoxDescent || fallbackHeight * 0.2;
+        const width = metrics.width;
+
+        Text._metricsCache.set(this._metricsKey(content), { width, ascent, descent });
+        return this;
+    }
+
+    private _metricsKey(content: string): string {
+        return [
+            content,
+            this._fontFamily.get(),
+            this._fontSize.get(),
+            this._renderMode.get(),
+            this._latexDisplayMode.get() ? 'display' : 'inline',
+        ].join('|');
+    }
+
     computeLocalBBox(): BBox {
-        this._settleForMeasurement();
-        // Text bbox is approximate (no canvas context here).
-        // We estimate based on character count × font size.
         const content = this.getRenderedContent();
         const fontSize = this._fontSize.get();
         const displayScale = this.isLatexDisplayMode() ? 1.15 : 1;
+        const cached = Text._metricsCache.get(this._metricsKey(content));
         const widthFactor = this.isLatex() ? 0.64 : 0.6;
         const approxWidth = content.length * fontSize * widthFactor * displayScale;
         const approxHeight = fontSize * 1.2 * displayScale;
+        const width = cached?.width ?? approxWidth;
+        const ascent = cached?.ascent ?? approxHeight * 0.8;
+        const descent = cached?.descent ?? approxHeight * 0.2;
         const align = this._textAlign.get();
         const baseline = this._textBaseline.get();
 
         let minX = 0;
         switch (align) {
             case 'center':
-                minX = -approxWidth / 2;
+                minX = -width / 2;
                 break;
             case 'right':
-                minX = -approxWidth;
+                minX = -width;
                 break;
         }
 
@@ -135,24 +174,24 @@ export class Text extends SceneNode {
         switch (baseline) {
             case 'top':
                 minY = 0;
-                maxY = approxHeight;
+                maxY = ascent + descent;
                 break;
             case 'middle':
-                minY = -approxHeight / 2;
-                maxY = approxHeight / 2;
+                minY = -(ascent + descent) / 2;
+                maxY = (ascent + descent) / 2;
                 break;
             case 'bottom':
-                minY = -approxHeight;
+                minY = -(ascent + descent);
                 maxY = 0;
                 break;
             case 'alphabetic':
             default:
-                minY = -approxHeight * 0.8;
-                maxY = approxHeight * 0.2;
+                minY = -ascent;
+                maxY = descent;
                 break;
         }
 
-        return new BBox(minX, minY, minX + approxWidth, maxY);
+        return new BBox(minX, minY, minX + width, maxY);
     }
 
     getShapeGeometry(): ShapeGeometry {

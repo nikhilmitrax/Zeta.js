@@ -61,7 +61,6 @@ export class Circle extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
-        this._settleForMeasurement();
         const r = this._radius.get();
         return BBox.fromCenter(0, 0, r * 2, r * 2);
     }

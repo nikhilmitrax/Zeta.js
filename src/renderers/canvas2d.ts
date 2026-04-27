@@ -1,7 +1,7 @@
 // ─── Canvas2DRenderer ─────────────────────────────────────────────────────────
 
 import type { Renderer } from './renderer';
-import type { SceneNode } from '../core/node';
+import type { BoundsKind, SceneNode } from '../core/node';
 import type { Rect } from '../shapes/rect';
 import type { Circle } from '../shapes/circle';
 import type { Path } from '../shapes/path';
@@ -68,24 +68,28 @@ export class Canvas2DRenderer implements Renderer {
             ctx.globalAlpha *= opacity;
         }
 
-        // Render based on type
-        switch (node.type) {
-            case 'rect':
-                this._renderRect(ctx, node as unknown as Rect);
-                break;
-            case 'circle':
-                this._renderCircle(ctx, node as unknown as Circle);
-                break;
-            case 'path':
-                this._renderPath(ctx, node as unknown as Path);
-                break;
-            case 'text':
-                this._renderText(ctx, node as unknown as Text);
-                break;
-            case 'line':
-                this._renderLine(ctx, node as unknown as Line);
-                break;
+        // Render based on type (layout-only nodes skip self paint but keep children).
+        if (!node.isLayoutOnly()) {
+            switch (node.type) {
+                case 'rect':
+                    this._renderRect(ctx, node as unknown as Rect);
+                    break;
+                case 'circle':
+                    this._renderCircle(ctx, node as unknown as Circle);
+                    break;
+                case 'path':
+                    this._renderPath(ctx, node as unknown as Path);
+                    break;
+                case 'text':
+                    this._renderText(ctx, node as unknown as Text);
+                    break;
+                case 'line':
+                    this._renderLine(ctx, node as unknown as Line);
+                    break;
+            }
         }
+
+        this._renderBoundsOverlay(ctx, node);
 
         // Render children
         for (const child of node.children) {
@@ -94,6 +98,30 @@ export class Canvas2DRenderer implements Renderer {
 
         ctx.restore();
         node.clearRenderDirty();
+    }
+
+    private _renderBoundsOverlay(ctx: CanvasRenderingContext2D, node: SceneNode): void {
+        const kinds = node._getShownBoundsKinds();
+        if (kinds.length === 0) return;
+
+        for (const kind of kinds) {
+            const box = node.getBounds({ space: 'local', kind });
+            if (box.isEmpty()) continue;
+            const style = this._boundsOverlayStyle(kind);
+            ctx.save();
+            ctx.beginPath();
+            ctx.setLineDash(style.dash);
+            ctx.strokeStyle = style.color;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(box.minX, box.minY, box.width, box.height);
+            ctx.restore();
+        }
+    }
+
+    private _boundsOverlayStyle(kind: BoundsKind): { color: string; dash: number[] } {
+        if (kind === 'layout') return { color: '#3b82f6', dash: [6, 3] };
+        if (kind === 'visual') return { color: '#10b981', dash: [4, 3] };
+        return { color: '#f59e0b', dash: [2, 2] };
     }
 
     private _applyStroke(ctx: CanvasRenderingContext2D, node: SceneNode): void {
@@ -178,6 +206,7 @@ export class Canvas2DRenderer implements Renderer {
         const fill = text.style._fill.get();
 
         ctx.font = text.getFont();
+        text.measureWithContext(ctx);
         ctx.textAlign = text._textAlign.get();
         ctx.textBaseline = text._textBaseline.get();
 

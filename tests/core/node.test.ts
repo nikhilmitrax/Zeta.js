@@ -3,6 +3,7 @@ import { Group } from '../../src/core/group';
 import { Vec2, BBox } from '../../src/math';
 import { Rect } from '../../src/shapes/rect';
 import { Circle } from '../../src/shapes/circle';
+import { Line } from '../../src/shapes/line';
 
 describe('SceneNode (via concrete shapes)', () => {
     it('default position is provided', () => {
@@ -102,6 +103,93 @@ describe('SceneNode (via concrete shapes)', () => {
         expect(count).toBe(1);
     });
 
+    it('exposes public geometry getters', () => {
+        const parent = new Group().pos(10, 20);
+        const r = new Rect(new Vec2(5, 7), new Vec2(30, 12));
+        parent.addChild(r);
+
+        expect(r.getPosition().equals(new Vec2(5, 7))).toBe(true);
+        expect(r.getPosition({ space: 'world' }).equals(new Vec2(15, 27))).toBe(true);
+        expect(r.getSize().equals(new Vec2(30, 12))).toBe(true);
+
+        const localLayout = r.getBounds({ space: 'local', kind: 'layout' });
+        const worldVisual = r.getBounds({ space: 'world', kind: 'visual' });
+        expect(localLayout.equals(new BBox(0, 0, 30, 12))).toBe(true);
+        expect(worldVisual.equals(new BBox(15, 27, 45, 39))).toBe(true);
+    });
+
+    it('splits layout/visual/hit bounds for stroked primitives', () => {
+        const r = new Rect(Vec2.zero(), new Vec2(20, 10)).stroke('#222', 4);
+        const layout = r.getBounds({ kind: 'layout' });
+        const visual = r.getBounds({ kind: 'visual' });
+        const hit = r.getBounds({ kind: 'hit' });
+
+        expect(layout.equals(new BBox(0, 0, 20, 10))).toBe(true);
+        expect(visual.equals(new BBox(-2, -2, 22, 12))).toBe(true);
+        expect(hit.equals(new BBox(-4, -4, 24, 14))).toBe(true);
+    });
+
+    it('uses child visual/hit bounds for groups while preserving layout bounds', () => {
+        const group = new Group().size([100, 50]);
+        group.rect([10, 10], [20, 10]).stroke('#000', 4);
+
+        const layout = group.getBounds({ kind: 'layout' });
+        const visual = group.getBounds({ kind: 'visual' });
+        const hit = group.getBounds({ kind: 'hit' });
+
+        expect(layout.equals(new BBox(0, 0, 100, 50))).toBe(true);
+        expect(visual.equals(new BBox(8, 8, 32, 22))).toBe(true);
+        expect(hit.equals(new BBox(6, 6, 34, 24))).toBe(true);
+    });
+
+    it('supports layout-only nodes that keep layout bounds but skip visual/hit bounds', () => {
+        const r = new Rect(Vec2.zero(), new Vec2(20, 10)).stroke('#111', 4).layoutOnly();
+
+        const layout = r.getBounds({ kind: 'layout' });
+        const visual = r.getBounds({ kind: 'visual' });
+        const hit = r.getBounds({ kind: 'hit' });
+
+        expect(layout.equals(new BBox(0, 0, 20, 10))).toBe(true);
+        expect(visual.isEmpty()).toBe(true);
+        expect(hit.isEmpty()).toBe(true);
+        expect(r.containsWorldPoint(10, 5)).toBe(false);
+    });
+
+    it('excludes layout-only children from group visual/hit union while keeping layout union', () => {
+        const group = new Group();
+        group.rect([0, 0], [20, 10]).fill('#0ea5e9');
+        group.rect([100, 0], [30, 10]).layoutOnly();
+
+        const layout = group.getBounds({ kind: 'layout' });
+        const visual = group.getBounds({ kind: 'visual' });
+        const hit = group.getBounds({ kind: 'hit' });
+
+        expect(layout.equals(new BBox(0, 0, 130, 10))).toBe(true);
+        expect(visual.equals(new BBox(0, 0, 20, 10))).toBe(true);
+        expect(hit.equals(new BBox(-2, -2, 22, 12))).toBe(true);
+    });
+
+    it('tracks bounds overlay helpers for debugging composition spacing', () => {
+        const r = new Rect(Vec2.zero(), new Vec2(20, 10));
+
+        expect(r.isShowingBounds()).toBe(false);
+        r.showBounds('layout');
+        expect(r.isShowingBounds()).toBe(true);
+        expect(r.isShowingBounds('layout')).toBe(true);
+
+        r.showBounds(['visual', 'hit']);
+        expect(r.isShowingBounds('visual')).toBe(true);
+        expect(r.isShowingBounds('hit')).toBe(true);
+
+        r.hideBounds('visual');
+        expect(r.isShowingBounds('layout')).toBe(true);
+        expect(r.isShowingBounds('visual')).toBe(false);
+        expect(r.isShowingBounds('hit')).toBe(true);
+
+        r.hideBounds();
+        expect(r.isShowingBounds()).toBe(false);
+    });
+
     it('follow supports anchor and directional semantics', () => {
         const a = new Rect(new Vec2(20, 30), new Vec2(40, 20));
         const b = new Rect(Vec2.zero(), new Vec2(10, 10));
@@ -152,6 +240,28 @@ describe('Circle', () => {
         expect(bb.height).toBe(50);
         expect(bb.center.x).toBeCloseTo(0);
         expect(bb.center.y).toBeCloseTo(0);
+    });
+});
+
+describe('Line bounds', () => {
+    it('expands visual/hit bounds based on stroke width', () => {
+        const line = new Line(new Vec2(0, 0), new Vec2(10, 0)).stroke('#000', 6);
+        const layout = line.getBounds({ kind: 'layout' });
+        const visual = line.getBounds({ kind: 'visual' });
+        const hit = line.getBounds({ kind: 'hit' });
+
+        expect(layout.equals(new BBox(0, 0, 10, 0))).toBe(true);
+        expect(visual.equals(new BBox(-3, -3, 13, 3))).toBe(true);
+        expect(hit.equals(new BBox(-5, -5, 15, 5))).toBe(true);
+    });
+
+    it('enforces minimum hit target bounds when configured', () => {
+        const line = new Line(new Vec2(0, 0), new Vec2(10, 0)).stroke('#000', 1).minHitSize(24);
+        const hit = line.getBounds({ kind: 'hit' });
+
+        expect(hit.width).toBeCloseTo(24);
+        expect(hit.height).toBeCloseTo(24);
+        expect(line.getMinHitSize()?.equals(new Vec2(24, 24))).toBe(true);
     });
 });
 

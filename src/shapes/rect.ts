@@ -82,7 +82,6 @@ export class Rect extends SceneNode {
     }
 
     computeLocalBBox(): BBox {
-        this._settleForMeasurement();
         const s = this._size.get();
         return BBox.fromPosSize(0, 0, s.x, s.y);
     }

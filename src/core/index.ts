@@ -19,6 +19,10 @@ export {
     type AnimationProps,
     type AnimationOptions,
     type AnimationEase,
+    type BoundsKind,
+    type BoundsSpace,
+    type BoundsOptions,
+    type PositionOptions,
 } from './node';
 export {
     Group,
@@ -50,7 +54,14 @@ export {
 export {
     PositionConstraint,
     PinConstraint,
+    explainConstraintTrace,
+    setConstraintTraceHook,
     type AlignOption,
     type ConstraintOptions,
     type ConstraintDirection,
+    type ConstraintKind,
+    type ConstraintTraceTrigger,
+    type ConstraintTraceEvent,
+    type ConstraintTraceHook,
+    type ConstraintTraceExplainerHook,
 } from './constraints';
