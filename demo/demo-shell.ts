@@ -169,13 +169,21 @@ function ensureShellStyles(): void {
             backdrop-filter: blur(6px);
         }
 
+        .zeta-demo-main__content > * {
+            min-width: 0;
+            max-width: 100%;
+        }
+
         .zeta-demo-main #figure {
             max-width: 100% !important;
+            height: auto !important;
         }
 
         .zeta-demo-main #figure canvas,
         .zeta-demo-main #figure svg {
+            width: 100% !important;
             max-width: 100%;
+            height: auto !important;
         }
 
         body.zeta-demo-shell-body .demo-nav {
@@ -212,6 +220,15 @@ function ensureShellStyles(): void {
 
             .zeta-demo-main {
                 padding: 14px 10px 24px;
+            }
+
+            .zeta-demo-main__content {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .zeta-demo-main #figure {
+                width: 100% !important;
             }
         }
     `;

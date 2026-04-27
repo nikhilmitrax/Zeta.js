@@ -78,6 +78,41 @@ describe('Line routing', () => {
         expect(routeIntersectsBBox(routed.getRoutePoints(), obstacle)).toBe(false);
     });
 
+    it('keeps simple orthogonal route when unrelated obstacles are present', () => {
+        const root = new Group();
+        root.add(new Rect(new Vec2(60, 90), new Vec2(30, 30)));
+
+        const line = new Line(new Vec2(0, 0), new Vec2(100, 40))
+            .route('orthogonal', { avoidObstacles: true });
+        root.add(line);
+
+        const points = line.getRoutePoints();
+        expect(points.map((p) => [p.x, p.y])).toEqual([
+            [0, 0],
+            [50, 0],
+            [50, 40],
+            [100, 40],
+        ]);
+    });
+
+    it('does not route around connected endpoint descendants', () => {
+        const root = new Group();
+        const source = new Group();
+        source.add(new Rect(new Vec2(35, -6), new Vec2(20, 12)));
+        const target = new Rect(new Vec2(100, -5), new Vec2(20, 10));
+
+        const line = new Line(new Vec2(0, 0), new Vec2(100, 0))
+            .route('orthogonal', { avoidObstacles: true })
+            .connect(source, target, { from: 'right', to: 'left' });
+        root.add(source, target, line);
+
+        const points = line.getRoutePoints();
+        expect(points.map((p) => [p.x, p.y])).toEqual([
+            [55, 0],
+            [100, 0],
+        ]);
+    });
+
     it('avoidObstacles ignores large background containers containing endpoints', () => {
         const root = new Group();
         // Typical scene background panel that should not block routing.

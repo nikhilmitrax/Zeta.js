@@ -113,6 +113,7 @@ export class ZCanvas {
     private _scene: Scene;
     private _renderer: Renderer;
     private _container: HTMLElement;
+    private _size: Vec2;
     private _resizeObserver: ResizeObserver | null = null;
     private _hoveredNode: SceneNode | null = null;
     private _activePointerTargets = new Map<number, SceneNode>();
@@ -131,6 +132,7 @@ export class ZCanvas {
 
         const width = options.width ?? (container.clientWidth || 800);
         const height = options.height ?? (container.clientHeight || 600);
+        this._size = new Vec2(width, height);
         const rendererType = options.renderer ?? 'auto';
 
         // Create renderer
@@ -155,6 +157,7 @@ export class ZCanvas {
             this._resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
                     const { width: w, height: h } = entry.contentRect;
+                    this._size = new Vec2(w, h);
                     this._renderer.resize(w, h);
                     this._scene.size([w, h]);
                     this._scene.flush();
@@ -461,9 +464,11 @@ export class ZCanvas {
 
     private _eventWorldPoint(event: PointerEvent): Vec2 {
         const rect = this._renderer.getElement().getBoundingClientRect();
+        const scaleX = rect.width > 0 ? this._size.x / rect.width : 1;
+        const scaleY = rect.height > 0 ? this._size.y / rect.height : 1;
         return new Vec2(
-            event.clientX - rect.left,
-            event.clientY - rect.top,
+            (event.clientX - rect.left) * scaleX,
+            (event.clientY - rect.top) * scaleY,
         );
     }
 

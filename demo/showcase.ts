@@ -222,8 +222,8 @@ function createDemo(renderer: RendererType) {
     plot.func((x) => Math.cos(x), { samples: 120 }).stroke('#f472b6', 2).dashed([6, 4]);
 
     const iso = isoHost.group()
-        .at(['34%', '70%'])
-        .project('isometric', { angle: 30, scale: 18 });
+        .at(['34%', '58%'])
+        .project('isometric', { angle: 30, scale: 16 });
     for (let i = 0; i <= 7; i++) {
         iso.line([i, 0, 0], [i, 6, 0]).stroke('rgba(148,163,184,0.35)', 1);
         iso.line([0, i, 0], [7, i, 0]).stroke('rgba(148,163,184,0.35)', 1);

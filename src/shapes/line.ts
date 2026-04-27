@@ -40,6 +40,8 @@ export class Line extends SceneNode {
     private _fromSpec: [UnitSpec, UnitSpec];
     private _toSpec: [UnitSpec, UnitSpec];
     private _disconnectBinding: (() => void) | null = null;
+    private _connectedFromNode: SceneNode | null = null;
+    private _connectedToNode: SceneNode | null = null;
 
     constructor(from: Vec2, to: Vec2) {
         super(Vec2.zero());
@@ -144,6 +146,8 @@ export class Line extends SceneNode {
      */
     connect(fromNode: SceneNode, toNode: SceneNode, opts: LineConnectOptions = {}): this {
         this.disconnect();
+        this._connectedFromNode = fromNode;
+        this._connectedToNode = toNode;
 
         const fromRef = opts.from ?? 'auto';
         const toRef = opts.to ?? 'auto';
@@ -203,6 +207,8 @@ export class Line extends SceneNode {
     disconnect(): this {
         this._disconnectBinding?.();
         this._disconnectBinding = null;
+        this._connectedFromNode = null;
+        this._connectedToNode = null;
         return this;
     }
 
@@ -256,23 +262,7 @@ export class Line extends SceneNode {
             }
         }
 
-        if (Math.abs(dx) >= Math.abs(dy)) {
-            const midX = from.x + dx / 2;
-            return this._dedupeRoute([
-                from,
-                new Vec2(midX, from.y),
-                new Vec2(midX, to.y),
-                to,
-            ]);
-        }
-
-        const midY = from.y + dy / 2;
-        return this._dedupeRoute([
-            from,
-            new Vec2(from.x, midY),
-            new Vec2(to.x, midY),
-            to,
-        ]);
+        return this._simpleOrthogonalRoute(from, to);
     }
 
     computeLocalBBox(): BBox {
@@ -297,6 +287,11 @@ export class Line extends SceneNode {
     private _routeOrthogonalAvoidingObstacles(from: Vec2, to: Vec2): Vec2[] | null {
         const obstacles = this._collectObstacleBBoxesWorld(from, to).map((bb) => bb.expand(6));
         if (obstacles.length === 0) return null;
+
+        const direct = this._simpleOrthogonalRoute(from, to);
+        if (!this._routeIntersectsObstacles(direct, obstacles)) {
+            return direct;
+        }
 
         const bounds = this._computeRoutingBounds(from, to, obstacles);
         const cell = this._computeGridCellSize(from, to);
@@ -331,6 +326,74 @@ export class Line extends SceneNode {
             to,
         ];
         return this._simplifyOrthogonalPoints(this._orthogonalize(points));
+    }
+
+    private _simpleOrthogonalRoute(from: Vec2, to: Vec2): Vec2[] {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+
+        if (dx === 0 || dy === 0) {
+            return [from, to];
+        }
+
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            const midX = from.x + dx / 2;
+            return this._dedupeRoute([
+                from,
+                new Vec2(midX, from.y),
+                new Vec2(midX, to.y),
+                to,
+            ]);
+        }
+
+        const midY = from.y + dy / 2;
+        return this._dedupeRoute([
+            from,
+            new Vec2(from.x, midY),
+            new Vec2(to.x, midY),
+            to,
+        ]);
+    }
+
+    private _routeIntersectsObstacles(points: Vec2[], obstacles: BBox[]): boolean {
+        for (let i = 0; i < points.length - 1; i++) {
+            if (obstacles.some((bb) => this._orthogonalSegmentIntersectsBBox(points[i], points[i + 1], bb))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private _orthogonalSegmentIntersectsBBox(a: Vec2, b: Vec2, bbox: BBox): boolean {
+        const minX = Math.min(a.x, b.x);
+        const maxX = Math.max(a.x, b.x);
+        const minY = Math.min(a.y, b.y);
+        const maxY = Math.max(a.y, b.y);
+
+        if (a.x === b.x) {
+            return (
+                a.x >= bbox.minX &&
+                a.x <= bbox.maxX &&
+                maxY >= bbox.minY &&
+                minY <= bbox.maxY
+            );
+        }
+
+        if (a.y === b.y) {
+            return (
+                a.y >= bbox.minY &&
+                a.y <= bbox.maxY &&
+                maxX >= bbox.minX &&
+                minX <= bbox.maxX
+            );
+        }
+
+        return (
+            maxX >= bbox.minX &&
+            minX <= bbox.maxX &&
+            maxY >= bbox.minY &&
+            minY <= bbox.maxY
+        );
     }
 
     private _aStar(
@@ -521,12 +584,17 @@ export class Line extends SceneNode {
 
         const obstacles: BBox[] = [];
         const walk = (node: SceneNode): void => {
+            if (this._isConnectedEndpointSubtree(node)) {
+                return;
+            }
+
             if (
                 !skip.has(node) &&
                 node._visible.get() &&
                 node.type !== 'group' &&
                 node.type !== 'scene' &&
-                node.type !== 'line'
+                node.type !== 'line' &&
+                node.type !== 'text'
             ) {
                 const bb = node.computeWorldBBox();
                 if (!bb.isEmpty()) {
@@ -545,6 +613,17 @@ export class Line extends SceneNode {
 
         walk(root);
         return obstacles;
+    }
+
+    private _isConnectedEndpointSubtree(node: SceneNode): boolean {
+        let current: SceneNode | null = node;
+        while (current) {
+            if (current === this._connectedFromNode || current === this._connectedToNode) {
+                return true;
+            }
+            current = current.parent;
+        }
+        return false;
     }
 
     private _getRoot(): SceneNode {
