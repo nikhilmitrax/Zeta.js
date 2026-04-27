@@ -355,6 +355,15 @@ interface ConstraintOptions {
 type ConstraintDirection = 'rightOf' | 'leftOf' | 'above' | 'below';
 type ConstraintKind = 'position' | 'pin' | 'alignment';
 type ConstraintTraceTrigger = 'init' | 'target-layout' | 'self-layout' | 'parent-layout';
+interface ConstraintDebugInfo {
+    kind: ConstraintKind;
+    targetId: number;
+    targetType: string;
+    direction?: ConstraintDirection;
+    align?: AlignOption;
+    gap?: UnitValue;
+    offset?: UnitPoint;
+}
 interface ConstraintTraceEvent {
     kind: ConstraintKind;
     trigger: ConstraintTraceTrigger;
@@ -389,6 +398,7 @@ declare class PositionConstraint {
     private _parentUnsub;
     private _watchedParent;
     private _applyQueued;
+    private _disposed;
     constructor(_node: SceneNode, _target: SceneNode, _direction: ConstraintDirection, gap: UnitValue, _align: AlignOption);
     private _syncParentSubscription;
     private _requestApply;
@@ -403,6 +413,7 @@ declare class PositionConstraint {
     private _computeAlignment;
     /** Detach the reactive subscription. */
     dispose(): void;
+    debugInfo(): ConstraintDebugInfo;
 }
 /**
  * A PinConstraint pins a node to a specific anchor point of another node
@@ -417,11 +428,13 @@ declare class PinConstraint {
     private _parentUnsub;
     private _watchedParent;
     private _applyQueued;
+    private _disposed;
     constructor(_node: SceneNode, _target: SceneNode, _anchorFn: () => [number, number], offset?: UnitPoint);
     private _syncParentSubscription;
     private _requestApply;
     private _apply;
     dispose(): void;
+    debugInfo(): ConstraintDebugInfo;
 }
 
 type NodePointerEventType = 'pointerenter' | 'pointerleave' | 'pointermove' | 'pointerdown' | 'pointerup' | 'click' | 'dragstart' | 'drag' | 'dragend';
@@ -471,6 +484,17 @@ interface BoundsOptions {
 }
 interface PositionOptions {
     space?: BoundsSpace;
+}
+interface CenterInOptions {
+    offset?: UnitPoint;
+}
+interface KeepInsideOptions {
+    padding?: number;
+}
+interface NodeLayoutDebugInfo {
+    constraint: ConstraintDebugInfo | null;
+    shownBounds: BoundsKind[];
+    layoutOnly: boolean;
 }
 type MinHitSize = number | [number, number];
 declare abstract class SceneNode {
@@ -585,6 +609,7 @@ declare abstract class SceneNode {
     dragY(bounds?: DraggableOptions['bounds']): this;
     dragWithin(bounds?: DraggableOptions['bounds']): this;
     undraggable(): this;
+    debugLayoutInfo(): NodeLayoutDebugInfo;
     /** @internal */
     _isDraggable(): boolean;
     /** @internal */
@@ -618,6 +643,20 @@ declare abstract class SceneNode {
      * Position this node below `target`.
      */
     below(target: SceneNode, opts?: ConstraintOptions): this;
+    /**
+     * Center this node inside `target` using reactive anchor alignment.
+     */
+    centerIn(target: SceneNode, opts?: CenterInOptions): this;
+    /**
+     * Move this node just enough for its layout bounds to fit inside `target`.
+     * This is a one-shot placement helper because containment is not currently
+     * represented by the reactive constraint system.
+     */
+    keepInside(target: SceneNode, opts?: KeepInsideOptions): this;
+    dockRightOf(target: SceneNode, opts?: ConstraintOptions): this;
+    dockLeftOf(target: SceneNode, opts?: ConstraintOptions): this;
+    dockAbove(target: SceneNode, opts?: ConstraintOptions): this;
+    dockBelow(target: SceneNode, opts?: ConstraintOptions): this;
     /**
      * Set absolute position (shorthand for `.pos()`).
      * Unlike `.pos()`, accepts a tuple and is designed for use with helpers like `Z.midpoint()`.
@@ -657,6 +696,8 @@ declare abstract class SceneNode {
     private _assertAcyclicConstraintTarget;
     private _formatConstraintPath;
     private _formatConstraintRemediationHint;
+    private _worldBBoxInParentSpace;
+    private _placementTargetWorldBBox;
     private _containsLocalPoint;
     addChild(child: SceneNode): this;
     removeChild(child: SceneNode): this;
@@ -828,6 +869,12 @@ declare class Text extends SceneNode {
      * Capture renderer-backed text metrics for improved subsequent layout reads.
      */
     measureWithContext(ctx: CanvasRenderingContext2D): this;
+    /**
+     * Capture renderer-backed metrics when a renderer has a native text source
+     * other than Canvas2D, such as SVG getBBox/getComputedTextLength.
+     */
+    measureWithMetrics(width: number, ascent: number, descent: number): this;
+    measureWithSVGTextElement(el: SVGTextElement): this;
     private _metricsKey;
     computeLocalBBox(): BBox;
     getShapeGeometry(): ShapeGeometry;
@@ -964,6 +1011,121 @@ interface ContainerOptions {
     titleFontFamily?: string;
     contentOffset?: UnitPoint;
 }
+interface FitContentOptions {
+    padding?: number | [number, number];
+    minSize?: UnitSize;
+    maxSize?: UnitSize;
+    clampToParent?: boolean;
+}
+type OverflowPolicy = 'visible' | 'hidden' | 'scroll';
+interface CardOptions {
+    at?: UnitPoint | [number, number, number];
+    size?: UnitSize;
+    padding?: number | [number, number];
+    radius?: number;
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    titleColor?: string;
+    titleFontSize?: number;
+    subtitle?: string;
+    subtitleColor?: string;
+    subtitleFontSize?: number;
+    fontFamily?: string;
+}
+type CardGroup = Group & {
+    readonly frame: Rect;
+    readonly titleNode: Text;
+    readonly subtitleNode: Text | null;
+    readonly content: Group;
+};
+interface CalloutOptions extends CardOptions {
+    accentColor?: string;
+}
+type CalloutGroup = CardGroup & {
+    readonly accent: Rect;
+};
+type LegendItem = string | {
+    label: string;
+    color?: string;
+};
+interface LegendOptions {
+    at?: UnitPoint | [number, number, number];
+    title?: string;
+    itemGap?: UnitValue;
+    swatchSize?: number;
+    padding?: number | [number, number];
+    minSize?: UnitSize;
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    textColor?: string;
+    titleColor?: string;
+    fontSize?: number;
+    fontFamily?: string;
+}
+type LegendGroup = Group & {
+    readonly frame: Rect;
+    readonly titleNode: Text | null;
+    readonly content: Group;
+    readonly itemNodes: Array<{
+        swatch: Rect;
+        label: Text;
+    }>;
+};
+interface LabelNodeOptions {
+    anchor?: AnchorName;
+    offset?: UnitPoint;
+    color?: string;
+    fontSize?: number;
+    fontFamily?: string;
+}
+interface LabelEdgeOptions {
+    at?: 'start' | 'center' | 'end';
+    offset?: UnitPoint;
+    color?: string;
+    fontSize?: number;
+    fontFamily?: string;
+}
+type FlowStep = string | {
+    label: string;
+    subtitle?: string;
+};
+interface FlowOptions {
+    at?: UnitPoint | [number, number, number];
+    direction?: 'row' | 'column';
+    gap?: UnitValue;
+    nodeSize?: UnitSize;
+    node?: NodeOptions;
+    edge?: EdgeOptions;
+}
+type FlowGroup = Group & {
+    readonly steps: Group[];
+    readonly edges: Line[];
+};
+type SwimlaneSpec = {
+    title: string;
+    steps: FlowStep[];
+};
+interface SwimlaneOptions {
+    at?: UnitPoint | [number, number, number];
+    size?: UnitSize;
+    laneGap?: UnitValue;
+    laneHeight?: UnitValue;
+    flow?: FlowOptions;
+    panel?: ContainerOptions;
+}
+type SwimlaneLaneGroup = ContainerGroup & {
+    readonly flow: FlowGroup;
+};
+type SwimlaneGroup = Group & {
+    readonly lanes: SwimlaneLaneGroup[];
+};
+type ComposeRefs = Record<string, SceneNode>;
+interface ComposeOptions extends ConstraintOptions {
+    offset?: UnitPoint;
+    padding?: number;
+}
 interface NodeOptions {
     at?: UnitPoint | [number, number, number];
     size?: UnitSize;
@@ -1013,6 +1175,7 @@ declare class Group extends SceneNode {
     private _layoutSubscriptions;
     private _isApplyingLayout;
     private _layoutQueued;
+    private _overflow;
     constructor(position?: Vec2);
     _getUnitReferenceSizeForChildren(): UnitReferenceSize | null;
     protected _hasRelativeUnitSpecs(): boolean;
@@ -1042,6 +1205,18 @@ declare class Group extends SceneNode {
     edge(from: SceneNode, to: SceneNode, opts?: EdgeOptions): Line;
     group(): Group;
     container(opts?: ContainerOptions): ContainerGroup;
+    panel(opts?: ContainerOptions): ContainerGroup;
+    card(title: string, opts?: CardOptions): CardGroup;
+    callout(text: string, opts?: CalloutOptions): CalloutGroup;
+    legend(items: LegendItem[], opts?: LegendOptions): LegendGroup;
+    labelNode(target: SceneNode, content: string, opts?: LabelNodeOptions): Text;
+    labelEdge(edge: Line, content: string, opts?: LabelEdgeOptions): Text;
+    flow(steps: FlowStep[], opts?: FlowOptions): FlowGroup;
+    swimlane(lanes: SwimlaneSpec[], opts?: SwimlaneOptions): SwimlaneGroup;
+    compose(command: string, refs: ComposeRefs, opts?: ComposeOptions): SceneNode;
+    fitContent(opts?: FitContentOptions): this;
+    overflow(policy: OverflowPolicy): this;
+    getOverflow(): OverflowPolicy;
     row(opts?: RowLayoutOptions): Group;
     row(children: SceneNode[], opts?: RowLayoutOptions): Group;
     column(opts?: ColumnLayoutOptions): Group;
@@ -1058,8 +1233,15 @@ declare class Group extends SceneNode {
     private _setLayoutConfig;
     private _normalizeGap;
     private _normalizePadding;
+    private _resolveOptionalSize;
+    private _resolveMinSize;
+    private _resolveFitContentMaxSize;
+    private _computeChildrenLocalBBox;
     private _resolveChildRelativeUnit;
     private _resolveChildRelativeValue;
+    private _lookupComposeRef;
+    private _escapeRegExp;
+    private _pointAlongEdge;
     private _resolveFactoryPoint;
     private _portSideToAnchor;
     private _subscribeLayoutChild;
@@ -1141,6 +1323,22 @@ declare class Scene extends Group {
     dispose(): void;
 }
 
+type StarterThemeName = 'dashboard' | 'flow' | 'comparison';
+type SpacingPresetName = 'compact' | 'comfortable' | 'presentation';
+interface SpacingPreset {
+    gap: number;
+    padding: number | [number, number];
+    radius: number;
+    fontSize: number;
+    edgeWidth: number;
+}
+interface StarterThemePreset {
+    theme: CanvasTheme;
+    spacing: SpacingPresetName;
+}
+declare function getSpacingPreset(name: SpacingPresetName): SpacingPreset;
+declare function getStarterTheme(name: StarterThemeName): StarterThemePreset;
+
 type RendererType = 'canvas2d' | 'svg' | 'auto';
 interface CanvasOptions {
     renderer?: RendererType;
@@ -1175,6 +1373,41 @@ interface DebugSnapshot {
         points: [number, number][];
     }>;
 }
+interface DebugLayoutNode {
+    id: number;
+    type: string;
+    parentId: number | null;
+    position: [number, number];
+    size: [number, number];
+    bounds: {
+        layout: [number, number, number, number];
+        visual: [number, number, number, number];
+        hit: [number, number, number, number];
+    };
+    constraint: ReturnType<SceneNode['debugLayoutInfo']>['constraint'];
+    shownBounds: ReturnType<SceneNode['debugLayoutInfo']>['shownBounds'];
+    layoutOnly: boolean;
+}
+interface DebugLayoutReport {
+    spacing: SpacingPreset;
+    theme: CanvasTheme;
+    nodes: DebugLayoutNode[];
+}
+interface SpacingPreviewOptions {
+    maxPairs?: number;
+    color?: string;
+    fontSize?: number;
+}
+type SpacingPreviewAnnotation = {
+    fromId: number;
+    toId: number;
+    axis: 'x' | 'y';
+    gap: number;
+    targetGap: number;
+};
+type SpacingPreviewGroup = Group & {
+    readonly annotations: SpacingPreviewAnnotation[];
+};
 declare class ZCanvas {
     private _scene;
     private _renderer;
@@ -1186,6 +1419,7 @@ declare class ZCanvas {
     private _lastPointerPositions;
     private _dragState;
     private _theme;
+    private _spacing;
     constructor(selector: string | HTMLElement, options?: CanvasOptions);
     /**
      * Create a rectangle.
@@ -1235,6 +1469,15 @@ declare class ZCanvas {
      */
     group(): Group;
     container(opts?: ContainerOptions): ContainerGroup;
+    panel(opts?: ContainerOptions): ContainerGroup;
+    card(title: string, opts?: CardOptions): CardGroup;
+    callout(text: string, opts?: CalloutOptions): CalloutGroup;
+    legend(items: LegendItem[], opts?: LegendOptions): LegendGroup;
+    labelNode(target: SceneNode, content: string, opts?: LabelNodeOptions): Text;
+    labelEdge(edge: Line, content: string, opts?: LabelEdgeOptions): Text;
+    flow(steps: FlowStep[], opts?: FlowOptions): FlowGroup;
+    swimlane(lanes: SwimlaneSpec[], opts?: SwimlaneOptions): SwimlaneGroup;
+    compose(command: string, refs: ComposeRefs, opts?: ComposeOptions): SceneNode;
     row(opts?: RowLayoutOptions): Group;
     row(children: SceneNode[], opts?: RowLayoutOptions): Group;
     column(opts?: ColumnLayoutOptions): Group;
@@ -1245,13 +1488,22 @@ declare class ZCanvas {
     stack(children: SceneNode[], opts?: StackLayoutOptions): Group;
     node(label: string, opts?: NodeOptions): Group;
     theme(nameOrTheme: string | CanvasTheme): this;
+    applyStarterTheme(name: StarterThemeName): this;
+    spacingPreset(name: SpacingPresetName): this;
+    getSpacingPreset(): SpacingPreset;
     /**
      * Collect geometry diagnostics for debugging bounds/anchors/routes.
      * This is the data foundation for visual debug overlays.
      */
     debugSnapshot(opts?: DebugOptions): DebugSnapshot;
+    debugLayout(): DebugLayoutReport;
+    previewSpacing(name?: SpacingPresetName, opts?: SpacingPreviewOptions): SpacingPreviewGroup;
     private _mergeNodeOptions;
     private _mergeEdgeOptions;
+    private _cloneTheme;
+    private _withDefaultGap;
+    private _spacingCandidates;
+    private _pushSpacingCandidate;
     private _attachPointerDelegation;
     private _detachPointerDelegation;
     private _eventWorldPoint;
@@ -1314,6 +1566,7 @@ declare class SVGRenderer implements Renderer {
     private _createCircle;
     private _createPath;
     private _createText;
+    private _measureText;
     private _createLine;
     private _buildLinePath;
     private _appendBoundsOverlay;
@@ -1344,4 +1597,4 @@ interface ZetaPluginAPI {
 type PluginFn = (Z: ZetaPluginAPI) => void;
 declare const Z: ZetaPluginAPI;
 
-export { type AlignOption, AnchorMap, type AnchorName, type AnimationEase, type AnimationOptions, type AnimationProps, type AxisOptions, BBox, type BoundsKind, type BoundsOptions, type BoundsSpace, Canvas2DRenderer, type CanvasOptions, type CanvasTheme, Circle, type ColumnLayoutOptions, Computed, type ConstraintDirection, type ConstraintKind, type ConstraintOptions, type ConstraintTraceEvent, type ConstraintTraceExplainerHook, type ConstraintTraceHook, type ConstraintTraceTrigger, type ContainerGroup, type ContainerOptions, type CoordAxisConfig, type CoordScaleType, type CoordsConfig, type CustomMethodHost, type DebugOptions, type DebugSnapshot, type DraggableOptions, type EdgeOptions, type FollowDirection, type FunctionPlotOptions, type GridLayoutOptions, Group, type IsometricProjectionOptions, type LatexTextOptions, type LayoutAlignX, type LayoutAlignY, Line, type LineAnchorRef, type LineConnectOptions, type LineRouteMode, type LineRouteOptions, Matrix3, type NodeOptions, type NodePointerEvent, type NodePointerEventHandler, type NodePointerEventType, type NodePortSide, type NodePortSpec, type NodeType, Path, type PathSegment, PinConstraint, type PluginFn, type PluginMacroFactory, type PluginShapeFactory, PositionConstraint, type PositionOptions, Rect, type Renderer, type RendererType, type RowLayoutOptions, SVGRenderer, Scene, SceneNode, type ShapeGeometry, Signal, type StackLayoutAlign, type StackLayoutOptions, type StrokeStyle, Style, StyleManager, type StyleProps, type StyleTarget, type StyleTextAlign, type StyleTextBaseline, Text, type TextAlign, type TextBaseline, type TextRenderMode, type UnitPoint, type UnitSize, type UnitValue, Vec2, ZCanvas, type ZetaPluginAPI, batch, computed, Z as default, explainConstraintTrace, perimeterPoint, rayShapeIntersection, setConstraintTraceHook, signal };
+export { type AlignOption, AnchorMap, type AnchorName, type AnimationEase, type AnimationOptions, type AnimationProps, type AxisOptions, BBox, type BoundsKind, type BoundsOptions, type BoundsSpace, type CalloutGroup, type CalloutOptions, Canvas2DRenderer, type CanvasOptions, type CanvasTheme, type CardGroup, type CardOptions, type CenterInOptions, Circle, type ColumnLayoutOptions, type ComposeOptions, type ComposeRefs, Computed, type ConstraintDebugInfo, type ConstraintDirection, type ConstraintKind, type ConstraintOptions, type ConstraintTraceEvent, type ConstraintTraceExplainerHook, type ConstraintTraceHook, type ConstraintTraceTrigger, type ContainerGroup, type ContainerOptions, type CoordAxisConfig, type CoordScaleType, type CoordsConfig, type CustomMethodHost, type DebugLayoutNode, type DebugLayoutReport, type DebugOptions, type DebugSnapshot, type DraggableOptions, type EdgeOptions, type FitContentOptions, type FlowGroup, type FlowOptions, type FlowStep, type FollowDirection, type FunctionPlotOptions, type GridLayoutOptions, Group, type IsometricProjectionOptions, type KeepInsideOptions, type LabelEdgeOptions, type LabelNodeOptions, type LatexTextOptions, type LayoutAlignX, type LayoutAlignY, type LegendGroup, type LegendItem, type LegendOptions, Line, type LineAnchorRef, type LineConnectOptions, type LineRouteMode, type LineRouteOptions, Matrix3, type NodeLayoutDebugInfo, type NodeOptions, type NodePointerEvent, type NodePointerEventHandler, type NodePointerEventType, type NodePortSide, type NodePortSpec, type NodeType, type OverflowPolicy, Path, type PathSegment, PinConstraint, type PluginFn, type PluginMacroFactory, type PluginShapeFactory, PositionConstraint, type PositionOptions, Rect, type Renderer, type RendererType, type RowLayoutOptions, SVGRenderer, Scene, SceneNode, type ShapeGeometry, Signal, type SpacingPreset, type SpacingPresetName, type SpacingPreviewAnnotation, type SpacingPreviewGroup, type SpacingPreviewOptions, type StackLayoutAlign, type StackLayoutOptions, type StarterThemeName, type StarterThemePreset, type StrokeStyle, Style, StyleManager, type StyleProps, type StyleTarget, type StyleTextAlign, type StyleTextBaseline, type SwimlaneGroup, type SwimlaneLaneGroup, type SwimlaneOptions, type SwimlaneSpec, Text, type TextAlign, type TextBaseline, type TextRenderMode, type UnitPoint, type UnitSize, type UnitValue, Vec2, ZCanvas, type ZetaPluginAPI, batch, computed, Z as default, explainConstraintTrace, getSpacingPreset, getStarterTheme, perimeterPoint, rayShapeIntersection, setConstraintTraceHook, signal };
